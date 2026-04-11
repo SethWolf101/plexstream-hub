@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
   const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN');
 
   if (!PLEX_URL || !PLEX_TOKEN) {
-    return new Response(JSON.stringify({ error: 'Plex not configured' }), {
+    return new Response(JSON.stringify({ error: 'Plex not configured. Set PLEX_URL and PLEX_TOKEN.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -21,20 +21,31 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
   const baseUrl = PLEX_URL.replace(/\/$/, '');
-  const plexHeaders = { 'X-Plex-Token': PLEX_TOKEN, 'Accept': 'application/json' };
+  const plexHeaders = {
+    'X-Plex-Token': PLEX_TOKEN,
+    'Accept': 'application/json',
+    'X-Plex-Client-Identifier': 'seths-streams',
+    'X-Plex-Product': 'Seths Streams',
+    'X-Plex-Version': '1.0',
+  };
 
   try {
     let plexUrl = '';
 
     switch (action) {
       case 'status':
-        plexUrl = `${baseUrl}/`;
+        plexUrl = `${baseUrl}/identity`;
         break;
       case 'libraries':
         plexUrl = `${baseUrl}/library/sections`;
         break;
       case 'library': {
         const sectionId = url.searchParams.get('sectionId');
+        if (!sectionId) {
+          return new Response(JSON.stringify({ error: 'sectionId required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         plexUrl = `${baseUrl}/library/sections/${sectionId}/all?X-Plex-Container-Start=0&X-Plex-Container-Size=50`;
         break;
       }
@@ -43,29 +54,67 @@ Deno.serve(async (req) => {
         break;
       case 'search': {
         const query = url.searchParams.get('query');
-        plexUrl = `${baseUrl}/hubs/search?query=${encodeURIComponent(query || '')}&limit=20`;
+        if (!query) {
+          return new Response(JSON.stringify({ error: 'query required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        plexUrl = `${baseUrl}/hubs/search?query=${encodeURIComponent(query)}&limit=20`;
         break;
       }
       case 'metadata': {
         const ratingKey = url.searchParams.get('ratingKey');
+        if (!ratingKey) {
+          return new Response(JSON.stringify({ error: 'ratingKey required' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         plexUrl = `${baseUrl}/library/metadata/${ratingKey}`;
         break;
       }
       default:
-        return new Response(JSON.stringify({ error: 'Unknown action' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ error: 'Unknown action. Use: status, libraries, library, recently-added, search, metadata' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
 
+    console.log(`Plex request: ${plexUrl}`);
     const res = await fetch(plexUrl, { headers: plexHeaders });
-    const data = await res.json();
+    const contentType = res.headers.get('content-type') || '';
+    const responseText = await res.text();
 
-    // Transform Plex response
+    if (!res.ok) {
+      console.error(`Plex returned ${res.status}: ${responseText.substring(0, 500)}`);
+      return new Response(JSON.stringify({ 
+        error: `Plex returned status ${res.status}`,
+        hint: 'Check your PLEX_URL and PLEX_TOKEN. PLEX_URL should be like https://your-plex-server:32400'
+      }), {
+        status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    let data: any;
+    if (contentType.includes('json')) {
+      data = JSON.parse(responseText);
+    } else if (contentType.includes('xml') || responseText.trim().startsWith('<')) {
+      // Plex returned XML — likely missing Accept header or old Plex version
+      console.log('Plex returned non-JSON. Content-Type:', contentType);
+      return new Response(JSON.stringify({
+        error: 'Plex returned XML instead of JSON',
+        hint: 'Your Plex server may need updating, or the URL format may be incorrect. Make sure PLEX_URL points directly to your Plex server (e.g., https://hostname:32400)',
+        contentType,
+      }), {
+        status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } else {
+      data = JSON.parse(responseText);
+    }
+
+    // Transform response
     let result: any = {};
 
     if (action === 'status') {
-      result = { online: true, name: data?.MediaContainer?.friendlyName };
+      result = { online: true, name: data?.MediaContainer?.friendlyName || data?.MediaContainer?.machineIdentifier || 'Plex Server' };
     } else if (action === 'libraries') {
       result = {
         libraries: (data?.MediaContainer?.Directory || []).map((d: any) => ({
@@ -95,7 +144,11 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error('Plex proxy error:', err);
-    return new Response(JSON.stringify({ error: 'Failed to connect to Plex' }), {
+    return new Response(JSON.stringify({ 
+      error: 'Failed to connect to Plex',
+      details: err instanceof Error ? err.message : 'Unknown error',
+      hint: 'Check that PLEX_URL is correct and accessible from the internet (e.g., https://your-appbox-domain:32400)'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
