@@ -15,12 +15,13 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
             <Link to="/" className="text-2xl font-bold text-primary tracking-tight">
-              PlexStream
+              Seth's Streams
             </Link>
             <div className="hidden md:flex items-center gap-6">
               <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Home</Link>
               <Link to="/browse" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Browse</Link>
-              <Link to="/requests" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Requests</Link>
+              {user && <Link to="/requests" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Requests</Link>}
+              {!user && <Link to="/plans" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Plans</Link>}
               {isAdmin && (
                 <Link to="/admin" className="text-sm text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
                   <Shield className="w-4 h-4" />
@@ -36,7 +37,7 @@ export default function Navbar() {
             </Button>
             {user ? (
               <div className="flex items-center gap-3">
-                <span className="hidden sm:inline text-sm text-muted-foreground">{user.email}</span>
+                <Link to="/account" className="hidden sm:inline text-sm text-muted-foreground hover:text-foreground">{user.email}</Link>
                 <Button variant="outline" size="sm" onClick={signOut}>Sign Out</Button>
               </div>
             ) : (
@@ -54,7 +55,8 @@ export default function Navbar() {
           <div className="px-4 py-3 space-y-2">
             <Link to="/" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Home</Link>
             <Link to="/browse" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Browse</Link>
-            <Link to="/requests" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Requests</Link>
+            {user && <Link to="/requests" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Requests</Link>}
+            {!user && <Link to="/plans" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Plans</Link>}
             {isAdmin && (
               <Link to="/admin" className="block py-2 text-primary" onClick={() => setMenuOpen(false)}>Admin Panel</Link>
             )}

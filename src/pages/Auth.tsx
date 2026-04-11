@@ -43,7 +43,7 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md bg-card border-border">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-primary">PlexStream</CardTitle>
+          <CardTitle className="text-3xl font-bold text-primary">Seth's Streams</CardTitle>
           <p className="text-muted-foreground">{isSignUp ? 'Create your account' : 'Sign in to continue'}</p>
         </CardHeader>
         <CardContent>
