@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
-  const baseUrl = PLEX_URL.replace(/\/$/, '');
+  const baseUrl = PLEX_URL.replace(/\/web\/?$/, '').replace(/\/$/, '');
   const plexHeaders = {
     'X-Plex-Token': PLEX_TOKEN,
     'Accept': 'application/json',
