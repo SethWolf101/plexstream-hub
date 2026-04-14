@@ -27,12 +27,12 @@ Deno.serve(async (req) => {
   }
   const baseUrl = sanitizedUrl;
   const plexHeaders = {
-    'X-Plex-Token': PLEX_TOKEN,
     'Accept': 'application/json',
     'X-Plex-Client-Identifier': 'seths-streams',
     'X-Plex-Product': 'Seths Streams',
     'X-Plex-Version': '1.0',
   };
+  const tokenParam = `X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
 
   try {
     let plexUrl = '';
