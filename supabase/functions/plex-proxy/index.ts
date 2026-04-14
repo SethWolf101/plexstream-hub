@@ -84,8 +84,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Plex request: ${plexUrl}`);
-    // @ts-ignore - Deno supports this option for self-signed certs
-    const res = await fetch(plexUrl, { headers: plexHeaders, client: Deno.createHttpClient({ caCerts: [], proxy: undefined }) } as any);
+    const res = await fetch(plexUrl, { headers: plexHeaders });
     const contentType = res.headers.get('content-type') || '';
     const responseText = await res.text();
 
