@@ -10,6 +10,7 @@ Deno.serve(async (req) => {
 
   const PLEX_URL = Deno.env.get('PLEX_URL');
   const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN');
+  console.log(`DEBUG: PLEX_URL=${PLEX_URL}, TOKEN_LENGTH=${PLEX_TOKEN?.length}, TOKEN_START=${PLEX_TOKEN?.substring(0, 4)}`);
 
   if (!PLEX_URL || !PLEX_TOKEN) {
     return new Response(JSON.stringify({ error: 'Plex not configured. Set PLEX_URL and PLEX_TOKEN.' }), {
