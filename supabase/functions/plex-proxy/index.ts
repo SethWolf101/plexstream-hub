@@ -20,6 +20,11 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
+  // Force HTTP for IP-based URLs to avoid SSL cert issues
+  let sanitizedUrl = PLEX_URL.replace(/\/web\/?$/, '').replace(/\/$/, '');
+  if (sanitizedUrl.match(/^https:\/\/\d+\.\d+\.\d+\.\d+/)) {
+    sanitizedUrl = sanitizedUrl.replace(/^https:/, 'http:');
+  }
   const baseUrl = PLEX_URL.replace(/\/web\/?$/, '').replace(/\/$/, '');
   const plexHeaders = {
     'X-Plex-Token': PLEX_TOKEN,
