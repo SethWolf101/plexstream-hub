@@ -10,6 +10,7 @@ Deno.serve(async (req) => {
 
   const PLEX_URL = Deno.env.get('PLEX_URL');
   const PLEX_TOKEN = Deno.env.get('PLEX_TOKEN');
+  console.log(`DEBUG: PLEX_URL=${PLEX_URL}, TOKEN_LENGTH=${PLEX_TOKEN?.length}, TOKEN_START=${PLEX_TOKEN?.substring(0, 4)}`);
 
   if (!PLEX_URL || !PLEX_TOKEN) {
     return new Response(JSON.stringify({ error: 'Plex not configured. Set PLEX_URL and PLEX_TOKEN.' }), {
@@ -27,12 +28,12 @@ Deno.serve(async (req) => {
   }
   const baseUrl = sanitizedUrl;
   const plexHeaders = {
-    'X-Plex-Token': PLEX_TOKEN,
     'Accept': 'application/json',
     'X-Plex-Client-Identifier': 'seths-streams',
     'X-Plex-Product': 'Seths Streams',
     'X-Plex-Version': '1.0',
   };
+  const tokenParam = `X-Plex-Token=${encodeURIComponent(PLEX_TOKEN)}`;
 
   try {
     let plexUrl = '';
@@ -83,7 +84,11 @@ Deno.serve(async (req) => {
         });
     }
 
-    console.log(`Plex request: ${plexUrl}`);
+    // Append token as query parameter
+    const separator = plexUrl.includes('?') ? '&' : '?';
+    plexUrl = `${plexUrl}${separator}${tokenParam}`;
+
+    console.log(`Plex request: ${plexUrl.replace(PLEX_TOKEN, '***')}`);
     const res = await fetch(plexUrl, { headers: plexHeaders });
     const contentType = res.headers.get('content-type') || '';
     const responseText = await res.text();
