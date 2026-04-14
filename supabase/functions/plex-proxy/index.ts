@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
   if (sanitizedUrl.match(/^https:\/\/\d+\.\d+\.\d+\.\d+/)) {
     sanitizedUrl = sanitizedUrl.replace(/^https:/, 'http:');
   }
-  const baseUrl = PLEX_URL.replace(/\/web\/?$/, '').replace(/\/$/, '');
+  const baseUrl = sanitizedUrl;
   const plexHeaders = {
     'X-Plex-Token': PLEX_TOKEN,
     'Accept': 'application/json',
