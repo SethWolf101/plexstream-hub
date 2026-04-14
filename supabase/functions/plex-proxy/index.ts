@@ -83,7 +83,11 @@ Deno.serve(async (req) => {
         });
     }
 
-    console.log(`Plex request: ${plexUrl}`);
+    // Append token as query parameter
+    const separator = plexUrl.includes('?') ? '&' : '?';
+    plexUrl = `${plexUrl}${separator}${tokenParam}`;
+
+    console.log(`Plex request: ${plexUrl.replace(PLEX_TOKEN, '***')}`);
     const res = await fetch(plexUrl, { headers: plexHeaders });
     const contentType = res.headers.get('content-type') || '';
     const responseText = await res.text();
