@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { forwardRef, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -16,7 +16,7 @@ interface ContentRowProps {
   onItemClick?: (item: ContentItem) => void;
 }
 
-export default function ContentRow({ title, items, onItemClick }: ContentRowProps) {
+const ContentRow = forwardRef<HTMLDivElement, ContentRowProps>(function ContentRow({ title, items, onItemClick }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (dir: 'left' | 'right') => {
@@ -28,7 +28,7 @@ export default function ContentRow({ title, items, onItemClick }: ContentRowProp
   if (!items.length) return null;
 
   return (
-    <div className="mb-8">
+    <div ref={ref} className="mb-8">
       <h2 className="text-xl font-semibold mb-3 px-4 sm:px-8 lg:px-16">{title}</h2>
       <div className="group relative">
         <Button
@@ -71,4 +71,6 @@ export default function ContentRow({ title, items, onItemClick }: ContentRowProp
       </div>
     </div>
   );
-}
+});
+
+export default ContentRow;
