@@ -20,7 +20,10 @@ interface MediaDetailModalProps {
   onRequest?: () => void;
 }
 
-const MediaDetailModal = forwardRef<HTMLDivElement, MediaDetailModalProps>(function MediaDetailModal({ open, onOpenChange, item, onRequest }, ref) {
+const MediaDetailModal = forwardRef<HTMLDivElement, MediaDetailModalProps>(function MediaDetailModal(
+  { open, onOpenChange, item, onRequest },
+  ref,
+) {
   if (!item) return null;
 
   return (
@@ -32,18 +35,36 @@ const MediaDetailModal = forwardRef<HTMLDivElement, MediaDetailModalProps>(funct
             <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent" />
           </div>
         )}
+
         <div className="p-6 space-y-4">
           <DialogHeader>
             <DialogTitle className="text-2xl">{item.title}</DialogTitle>
           </DialogHeader>
+
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             {item.year && <span>{item.year}</span>}
             {item.contentRating && <span className="border border-border px-2 py-0.5 rounded">{item.contentRating}</span>}
             {item.duration && <span>{Math.round(item.duration / 60000)}min</span>}
             {item.rating && <span>⭐ {item.rating.toFixed(1)}</span>}
           </div>
+
           {item.genre && <p className="text-sm text-muted-foreground">{item.genre}</p>}
           {item.summary && <p className="text-sm text-muted-foreground leading-relaxed">{item.summary}</p>}
+
           <div className="flex gap-3">
-            <Button><Play className="w-4 h-4 mr-2" /> Play on Plex</Button>
-            <Button variant="outline
+            <Button>
+              <Play className="w-4 h-4 mr-2" />
+              Play on Plex
+            </Button>
+            <Button variant="outline" onClick={onRequest}>
+              <Plus className="w-4 h-4 mr-2" />
+              Request Similar
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+});
+
+export default MediaDetailModal;
