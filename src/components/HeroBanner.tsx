@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, Info } from 'lucide-react';
 
@@ -17,18 +17,18 @@ interface HeroBannerProps {
   onInfo?: (item: MediaItem) => void;
 }
 
-export default function HeroBanner({ items, onPlay, onInfo }: HeroBannerProps) {
+const HeroBanner = forwardRef<HTMLDivElement, HeroBannerProps>(function HeroBanner({ items, onPlay, onInfo }, ref) {
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
     if (items.length <= 1) return;
-    const timer = setInterval(() => setCurrent(c => (c + 1) % items.length), 8000);
+    const timer = setInterval(() => setCurrent((c) => (c + 1) % items.length), 8000);
     return () => clearInterval(timer);
   }, [items.length]);
 
   if (!items.length) {
     return (
-      <div className="relative h-[80vh] bg-gradient-to-b from-secondary to-background flex items-center justify-center">
+      <div ref={ref} className="relative h-[80vh] bg-gradient-to-b from-secondary to-background flex items-center justify-center">
         <div className="text-center px-4">
           <h1 className="text-5xl sm:text-6xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
             Seth's Streams
@@ -44,7 +44,7 @@ export default function HeroBanner({ items, onPlay, onInfo }: HeroBannerProps) {
   const item = items[current];
 
   return (
-    <div className="relative h-[80vh] overflow-hidden">
+    <div ref={ref} className="relative h-[80vh] overflow-hidden">
       <div
         className="absolute inset-0 bg-cover bg-center transition-all duration-1000"
         style={{ backgroundImage: `url(${item.art || item.thumb})` }}
@@ -83,4 +83,6 @@ export default function HeroBanner({ items, onPlay, onInfo }: HeroBannerProps) {
       )}
     </div>
   );
-}
+});
+
+export default HeroBanner;
