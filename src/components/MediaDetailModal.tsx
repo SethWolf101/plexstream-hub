@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Play, Plus } from 'lucide-react';
@@ -19,12 +20,12 @@ interface MediaDetailModalProps {
   onRequest?: () => void;
 }
 
-export default function MediaDetailModal({ open, onOpenChange, item, onRequest }: MediaDetailModalProps) {
+const MediaDetailModal = forwardRef<HTMLDivElement, MediaDetailModalProps>(function MediaDetailModal({ open, onOpenChange, item, onRequest }, ref) {
   if (!item) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-card border-border p-0 overflow-hidden">
+      <DialogContent ref={ref} className="max-w-2xl bg-card border-border p-0 overflow-hidden">
         {item.art && (
           <div className="relative h-48 overflow-hidden">
             <img src={item.art} alt="" className="w-full h-full object-cover" />
@@ -45,10 +46,4 @@ export default function MediaDetailModal({ open, onOpenChange, item, onRequest }
           {item.summary && <p className="text-sm text-muted-foreground leading-relaxed">{item.summary}</p>}
           <div className="flex gap-3">
             <Button><Play className="w-4 h-4 mr-2" /> Play on Plex</Button>
-            <Button variant="outline" onClick={onRequest}><Plus className="w-4 h-4 mr-2" /> Request Similar</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+            <Button variant="outline
