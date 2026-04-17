@@ -19,6 +19,8 @@ export default function Navbar() {
             </Link>
             <div className="hidden md:flex items-center gap-6">
               <Link to="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Home</Link>
+              <Link to="/movies" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Movies</Link>
+              <Link to="/tv-shows" className="text-sm text-muted-foreground hover:text-foreground transition-colors">TV Shows</Link>
               <Link to="/browse" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Browse</Link>
               {user && <Link to="/requests" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Requests</Link>}
               {!user && <Link to="/plans" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Plans</Link>}
@@ -54,6 +56,8 @@ export default function Navbar() {
         <div className="md:hidden bg-card/95 backdrop-blur-md border-b border-border">
           <div className="px-4 py-3 space-y-2">
             <Link to="/" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Home</Link>
+            <Link to="/movies" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Movies</Link>
+            <Link to="/tv-shows" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>TV Shows</Link>
             <Link to="/browse" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Browse</Link>
             {user && <Link to="/requests" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Requests</Link>}
             {!user && <Link to="/plans" className="block py-2 text-muted-foreground hover:text-foreground" onClick={() => setMenuOpen(false)}>Plans</Link>}

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Users, FileText, Server, CheckCircle, XCircle, RefreshCw, Plus, Search, Trash2, Download, Tv } from 'lucide-react';
+import { Users, FileText, Server, CheckCircle, XCircle, RefreshCw, Plus, Search, Trash2, Download, Tv, Film } from 'lucide-react';
 
 export default function Admin() {
   const { isAdmin, isLoading } = useAuth();
@@ -25,9 +25,16 @@ export default function Admin() {
   const [sonarrResults, setSonarrResults] = useState<any[]>([]);
   const [searchingSonarr, setSearchingSonarr] = useState(false);
 
+  // Radarr state
+  const [radarrMovies, setRadarrMovies] = useState<any[]>([]);
+  const [radarrSearch, setRadarrSearch] = useState('');
+  const [radarrResults, setRadarrResults] = useState<any[]>([]);
+  const [searchingRadarr, setSearchingRadarr] = useState(false);
+
   // Prowlarr state
   const [indexers, setIndexers] = useState<any[]>([]);
   const [sonarrIndexers, setSonarrIndexers] = useState<any[]>([]);
+  const [radarrIndexers, setRadarrIndexers] = useState<any[]>([]);
 
   useEffect(() => {
     if (!isLoading && !isAdmin) navigate('/');
@@ -39,6 +46,7 @@ export default function Admin() {
       fetchRequests();
       checkServices();
       fetchSonarrSeries();
+      fetchRadarrMovies();
       fetchIndexers();
     }
   }, [isAdmin]);
@@ -82,7 +90,7 @@ export default function Admin() {
     setCheckingServices(true);
     const results: Record<string, any> = {};
 
-    for (const [name, fn] of [['plex', 'plex-proxy'], ['sonarr', 'sonarr-proxy'], ['prowlarr', 'prowlarr-proxy']]) {
+    for (const [name, fn] of [['plex', 'plex-proxy'], ['sonarr', 'sonarr-proxy'], ['radarr', 'radarr-proxy'], ['prowlarr', 'prowlarr-proxy']]) {
       try {
         const res = await apiCall(fn, { action: 'status' });
         if (res.ok) {
@@ -156,12 +164,58 @@ export default function Admin() {
     }
   };
 
-  // Prowlarr functions
+  // Radarr functions
+  const fetchRadarrMovies = async () => {
+    try {
+      const res = await apiCall('radarr-proxy', { action: 'movies' });
+      if (res.ok) {
+        const data = await res.json();
+        setRadarrMovies(data.movies || []);
+      }
+    } catch { /* */ }
+  };
+
+  const searchRadarr = async () => {
+    if (!radarrSearch.trim()) return;
+    setSearchingRadarr(true);
+    try {
+      const res = await apiCall('radarr-proxy', { action: 'search', term: radarrSearch });
+      if (res.ok) {
+        const data = await res.json();
+        setRadarrResults(data.results || []);
+      }
+    } catch { /* */ }
+    setSearchingRadarr(false);
+  };
+
+  const addToRadarr = async (movie: any) => {
+    try {
+      const res = await apiPost('radarr-proxy', { action: 'add' }, {
+        title: movie.title,
+        tmdbId: movie.tmdbId,
+        year: movie.year,
+        qualityProfileId: 1,
+        rootFolderPath: '/movies',
+        monitored: true,
+        addOptions: { searchForMovie: true },
+      });
+      if (res.ok) {
+        toast({ title: 'Added!', description: `"${movie.title}" added to Radarr.` });
+        fetchRadarrMovies();
+      } else {
+        const err = await res.json();
+        toast({ title: 'Error', description: JSON.stringify(err), variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to add movie.', variant: 'destructive' });
+    }
+  };
   const fetchIndexers = async () => {
     try {
-      const [prowRes, sonRes] = await Promise.all([
+      const [prowRes, sonRes, radRes] = await Promise.all([
         apiCall('prowlarr-proxy', { action: 'indexers' }),
         apiCall('sonarr-proxy', { action: 'indexers' }),
+        apiCall('radarr-proxy', { action: 'indexers' }),
       ]);
       if (prowRes.ok) {
         const data = await prowRes.json();
@@ -171,6 +225,10 @@ export default function Admin() {
         const data = await sonRes.json();
         setSonarrIndexers(data.indexers || []);
       }
+      if (radRes.ok) {
+        const data = await radRes.json();
+        setRadarrIndexers(data.indexers || []);
+      }
     } catch { /* */ }
   };
 
@@ -179,7 +237,7 @@ export default function Admin() {
       const res = await apiCall('prowlarr-proxy', { action: 'sync-indexers' });
       if (res.ok) {
         const data = await res.json();
-        toast({ title: 'Indexers Synced!', description: `${data.count || 0} indexers synced from Prowlarr to Sonarr.` });
+        toast({ title: 'Indexers Synced!', description: `${data.count || 0} indexers synced from Prowlarr to Sonarr & Radarr.` });
         fetchIndexers();
       } else {
         toast({ title: 'Error', description: 'Failed to sync indexers.', variant: 'destructive' });
@@ -199,7 +257,8 @@ export default function Admin() {
       <Tabs defaultValue="services" className="space-y-6">
         <TabsList className="bg-secondary flex-wrap h-auto gap-1">
           <TabsTrigger value="services"><Server className="w-4 h-4 mr-1" />Services</TabsTrigger>
-          <TabsTrigger value="sonarr"><Tv className="w-4 h-4 mr-1" />Sonarr</TabsTrigger>
+          <TabsTrigger value="sonarr"><Tv className="w-4 h-4 mr-1" />TV (Sonarr)</TabsTrigger>
+          <TabsTrigger value="radarr"><Film className="w-4 h-4 mr-1" />Movies (Radarr)</TabsTrigger>
           <TabsTrigger value="indexers"><Download className="w-4 h-4 mr-1" />Indexers</TabsTrigger>
           <TabsTrigger value="requests"><FileText className="w-4 h-4 mr-1" />Requests</TabsTrigger>
           <TabsTrigger value="users"><Users className="w-4 h-4 mr-1" />Users</TabsTrigger>
@@ -207,8 +266,8 @@ export default function Admin() {
 
         {/* Services Tab */}
         <TabsContent value="services" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {['plex', 'sonarr', 'prowlarr'].map(name => {
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {['plex', 'sonarr', 'radarr', 'prowlarr'].map(name => {
               const s = serviceStatus[name];
               return (
                 <Card key={name} className="bg-card border-border">
@@ -294,6 +353,69 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
+        {/* Radarr Tab - Add/Manage Movies */}
+        <TabsContent value="radarr" className="space-y-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Plus className="w-5 h-5" /> Add New Movie</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3 mb-4">
+                <Input
+                  value={radarrSearch}
+                  onChange={e => setRadarrSearch(e.target.value)}
+                  placeholder="Search for a movie to add..."
+                  className="bg-secondary border-border"
+                  onKeyDown={e => e.key === 'Enter' && searchRadarr()}
+                />
+                <Button onClick={searchRadarr} disabled={searchingRadarr}>
+                  <Search className="w-4 h-4 mr-2" />
+                  {searchingRadarr ? 'Searching...' : 'Search'}
+                </Button>
+              </div>
+              {radarrResults.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+                  {radarrResults.map((movie: any) => (
+                    <div key={movie.tmdbId} className="flex gap-3 p-3 bg-secondary rounded-lg">
+                      {movie.remotePoster && (
+                        <img src={movie.remotePoster} alt={movie.title} className="w-16 h-24 object-cover rounded" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{movie.title}</p>
+                        <p className="text-xs text-muted-foreground">{movie.year} • {movie.studio}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{movie.overview}</p>
+                        <Button size="sm" className="mt-2" onClick={() => addToRadarr(movie)}>
+                          <Plus className="w-3 h-3 mr-1" /> Add
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Current Library ({radarrMovies.length} movies)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {radarrMovies.map((m: any) => (
+                  <div key={m.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">{m.title}</p>
+                      <p className="text-xs text-muted-foreground">{m.year} • {m.hasFile ? 'Downloaded' : 'Missing'}</p>
+                    </div>
+                    <Badge variant={m.monitored ? 'default' : 'secondary'}>{m.monitored ? 'Monitored' : 'Unmonitored'}</Badge>
+                  </div>
+                ))}
+                {radarrMovies.length === 0 && <p className="text-muted-foreground text-center py-4">No movies in Radarr yet. Search and add above.</p>}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Indexers Tab */}
         <TabsContent value="indexers" className="space-y-6">
           <div className="flex items-center justify-between">
@@ -301,12 +423,12 @@ export default function Admin() {
             <div className="flex gap-3">
               <Button onClick={fetchIndexers}><RefreshCw className="w-4 h-4 mr-2" />Refresh</Button>
               <Button onClick={syncIndexers} variant="default">
-                <Download className="w-4 h-4 mr-2" />Sync All to Sonarr
+                <Download className="w-4 h-4 mr-2" />Sync to Sonarr & Radarr
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg">Prowlarr Indexers ({indexers.length})</CardTitle>
@@ -347,6 +469,28 @@ export default function Admin() {
                     </div>
                   ))}
                   {sonarrIndexers.length === 0 && <p className="text-muted-foreground text-center py-4">No indexers in Sonarr. Click "Sync All" to add from Prowlarr.</p>}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-lg">Radarr Indexers ({radarrIndexers.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {radarrIndexers.map((idx: any) => (
+                    <div key={idx.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{idx.name}</p>
+                        <p className="text-xs text-muted-foreground">{idx.protocol}</p>
+                      </div>
+                      <Badge variant={idx.enableRss ? 'default' : 'secondary'}>
+                        {idx.enableRss ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                  ))}
+                  {radarrIndexers.length === 0 && <p className="text-muted-foreground text-center py-4">No indexers in Radarr. Click "Sync" to add from Prowlarr.</p>}
                 </div>
               </CardContent>
             </Card>
