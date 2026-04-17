@@ -8,6 +8,8 @@ import Navbar from "@/components/Navbar";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Browse from "./pages/Browse";
+import Movies from "./pages/Movies";
+import TvShows from "./pages/TvShows";
 import Plans from "./pages/Plans";
 import Requests from "./pages/Requests";
 import Admin from "./pages/Admin";
@@ -27,6 +29,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/browse" element={<Browse />} />
+            <Route path="/movies" element={<Movies />} />
+            <Route path="/tv-shows" element={<TvShows />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/requests" element={<Requests />} />
             <Route path="/admin" element={<Admin />} />
