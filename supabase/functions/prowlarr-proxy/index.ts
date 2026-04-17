@@ -12,6 +12,8 @@ Deno.serve(async (req) => {
   const PROWLARR_API_KEY = Deno.env.get('PROWLARR_API_KEY');
   const SONARR_URL = Deno.env.get('SONARR_URL');
   const SONARR_API_KEY = Deno.env.get('SONARR_API_KEY');
+  const RADARR_URL = Deno.env.get('RADARR_URL');
+  const RADARR_API_KEY = Deno.env.get('RADARR_API_KEY');
 
   if (!PROWLARR_URL || !PROWLARR_API_KEY) {
     return new Response(JSON.stringify({ error: 'Prowlarr not configured' }), {
@@ -69,7 +71,7 @@ Deno.serve(async (req) => {
           added++;
         }
 
-        // Trigger Prowlarr app sync
+        // Trigger Prowlarr app sync (pushes indexers to all configured apps including Sonarr & Radarr)
         await fetch(`${baseUrl}/api/v1/command`, {
           method: 'POST',
           headers: prowlarrHeaders,
