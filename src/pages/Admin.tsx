@@ -353,6 +353,69 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
+        {/* Radarr Tab - Add/Manage Movies */}
+        <TabsContent value="radarr" className="space-y-6">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Plus className="w-5 h-5" /> Add New Movie</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3 mb-4">
+                <Input
+                  value={radarrSearch}
+                  onChange={e => setRadarrSearch(e.target.value)}
+                  placeholder="Search for a movie to add..."
+                  className="bg-secondary border-border"
+                  onKeyDown={e => e.key === 'Enter' && searchRadarr()}
+                />
+                <Button onClick={searchRadarr} disabled={searchingRadarr}>
+                  <Search className="w-4 h-4 mr-2" />
+                  {searchingRadarr ? 'Searching...' : 'Search'}
+                </Button>
+              </div>
+              {radarrResults.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+                  {radarrResults.map((movie: any) => (
+                    <div key={movie.tmdbId} className="flex gap-3 p-3 bg-secondary rounded-lg">
+                      {movie.remotePoster && (
+                        <img src={movie.remotePoster} alt={movie.title} className="w-16 h-24 object-cover rounded" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{movie.title}</p>
+                        <p className="text-xs text-muted-foreground">{movie.year} • {movie.studio}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{movie.overview}</p>
+                        <Button size="sm" className="mt-2" onClick={() => addToRadarr(movie)}>
+                          <Plus className="w-3 h-3 mr-1" /> Add
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle>Current Library ({radarrMovies.length} movies)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {radarrMovies.map((m: any) => (
+                  <div key={m.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">{m.title}</p>
+                      <p className="text-xs text-muted-foreground">{m.year} • {m.hasFile ? 'Downloaded' : 'Missing'}</p>
+                    </div>
+                    <Badge variant={m.monitored ? 'default' : 'secondary'}>{m.monitored ? 'Monitored' : 'Unmonitored'}</Badge>
+                  </div>
+                ))}
+                {radarrMovies.length === 0 && <p className="text-muted-foreground text-center py-4">No movies in Radarr yet. Search and add above.</p>}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Indexers Tab */}
         <TabsContent value="indexers" className="space-y-6">
           <div className="flex items-center justify-between">
@@ -360,12 +423,12 @@ export default function Admin() {
             <div className="flex gap-3">
               <Button onClick={fetchIndexers}><RefreshCw className="w-4 h-4 mr-2" />Refresh</Button>
               <Button onClick={syncIndexers} variant="default">
-                <Download className="w-4 h-4 mr-2" />Sync All to Sonarr
+                <Download className="w-4 h-4 mr-2" />Sync to Sonarr & Radarr
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg">Prowlarr Indexers ({indexers.length})</CardTitle>
