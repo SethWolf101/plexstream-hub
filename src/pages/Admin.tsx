@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Users, FileText, Server, CheckCircle, XCircle, RefreshCw, Plus, Search, Trash2, Download, Tv } from 'lucide-react';
+import { Users, FileText, Server, CheckCircle, XCircle, RefreshCw, Plus, Search, Trash2, Download, Tv, Film } from 'lucide-react';
 
 export default function Admin() {
   const { isAdmin, isLoading } = useAuth();
@@ -25,9 +25,16 @@ export default function Admin() {
   const [sonarrResults, setSonarrResults] = useState<any[]>([]);
   const [searchingSonarr, setSearchingSonarr] = useState(false);
 
+  // Radarr state
+  const [radarrMovies, setRadarrMovies] = useState<any[]>([]);
+  const [radarrSearch, setRadarrSearch] = useState('');
+  const [radarrResults, setRadarrResults] = useState<any[]>([]);
+  const [searchingRadarr, setSearchingRadarr] = useState(false);
+
   // Prowlarr state
   const [indexers, setIndexers] = useState<any[]>([]);
   const [sonarrIndexers, setSonarrIndexers] = useState<any[]>([]);
+  const [radarrIndexers, setRadarrIndexers] = useState<any[]>([]);
 
   useEffect(() => {
     if (!isLoading && !isAdmin) navigate('/');
@@ -39,6 +46,7 @@ export default function Admin() {
       fetchRequests();
       checkServices();
       fetchSonarrSeries();
+      fetchRadarrMovies();
       fetchIndexers();
     }
   }, [isAdmin]);
@@ -82,7 +90,7 @@ export default function Admin() {
     setCheckingServices(true);
     const results: Record<string, any> = {};
 
-    for (const [name, fn] of [['plex', 'plex-proxy'], ['sonarr', 'sonarr-proxy'], ['prowlarr', 'prowlarr-proxy']]) {
+    for (const [name, fn] of [['plex', 'plex-proxy'], ['sonarr', 'sonarr-proxy'], ['radarr', 'radarr-proxy'], ['prowlarr', 'prowlarr-proxy']]) {
       try {
         const res = await apiCall(fn, { action: 'status' });
         if (res.ok) {
@@ -156,7 +164,52 @@ export default function Admin() {
     }
   };
 
-  // Prowlarr functions
+  // Radarr functions
+  const fetchRadarrMovies = async () => {
+    try {
+      const res = await apiCall('radarr-proxy', { action: 'movies' });
+      if (res.ok) {
+        const data = await res.json();
+        setRadarrMovies(data.movies || []);
+      }
+    } catch { /* */ }
+  };
+
+  const searchRadarr = async () => {
+    if (!radarrSearch.trim()) return;
+    setSearchingRadarr(true);
+    try {
+      const res = await apiCall('radarr-proxy', { action: 'search', term: radarrSearch });
+      if (res.ok) {
+        const data = await res.json();
+        setRadarrResults(data.results || []);
+      }
+    } catch { /* */ }
+    setSearchingRadarr(false);
+  };
+
+  const addToRadarr = async (movie: any) => {
+    try {
+      const res = await apiPost('radarr-proxy', { action: 'add' }, {
+        title: movie.title,
+        tmdbId: movie.tmdbId,
+        year: movie.year,
+        qualityProfileId: 1,
+        rootFolderPath: '/movies',
+        monitored: true,
+        addOptions: { searchForMovie: true },
+      });
+      if (res.ok) {
+        toast({ title: 'Added!', description: `"${movie.title}" added to Radarr.` });
+        fetchRadarrMovies();
+      } else {
+        const err = await res.json();
+        toast({ title: 'Error', description: JSON.stringify(err), variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to add movie.', variant: 'destructive' });
+    }
+  };
   const fetchIndexers = async () => {
     try {
       const [prowRes, sonRes] = await Promise.all([
