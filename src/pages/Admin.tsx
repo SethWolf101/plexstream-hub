@@ -212,9 +212,10 @@ export default function Admin() {
   };
   const fetchIndexers = async () => {
     try {
-      const [prowRes, sonRes] = await Promise.all([
+      const [prowRes, sonRes, radRes] = await Promise.all([
         apiCall('prowlarr-proxy', { action: 'indexers' }),
         apiCall('sonarr-proxy', { action: 'indexers' }),
+        apiCall('radarr-proxy', { action: 'indexers' }),
       ]);
       if (prowRes.ok) {
         const data = await prowRes.json();
@@ -224,6 +225,10 @@ export default function Admin() {
         const data = await sonRes.json();
         setSonarrIndexers(data.indexers || []);
       }
+      if (radRes.ok) {
+        const data = await radRes.json();
+        setRadarrIndexers(data.indexers || []);
+      }
     } catch { /* */ }
   };
 
@@ -232,7 +237,7 @@ export default function Admin() {
       const res = await apiCall('prowlarr-proxy', { action: 'sync-indexers' });
       if (res.ok) {
         const data = await res.json();
-        toast({ title: 'Indexers Synced!', description: `${data.count || 0} indexers synced from Prowlarr to Sonarr.` });
+        toast({ title: 'Indexers Synced!', description: `${data.count || 0} indexers synced from Prowlarr to Sonarr & Radarr.` });
         fetchIndexers();
       } else {
         toast({ title: 'Error', description: 'Failed to sync indexers.', variant: 'destructive' });
