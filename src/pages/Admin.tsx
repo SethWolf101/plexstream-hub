@@ -252,7 +252,8 @@ export default function Admin() {
       <Tabs defaultValue="services" className="space-y-6">
         <TabsList className="bg-secondary flex-wrap h-auto gap-1">
           <TabsTrigger value="services"><Server className="w-4 h-4 mr-1" />Services</TabsTrigger>
-          <TabsTrigger value="sonarr"><Tv className="w-4 h-4 mr-1" />Sonarr</TabsTrigger>
+          <TabsTrigger value="sonarr"><Tv className="w-4 h-4 mr-1" />TV (Sonarr)</TabsTrigger>
+          <TabsTrigger value="radarr"><Film className="w-4 h-4 mr-1" />Movies (Radarr)</TabsTrigger>
           <TabsTrigger value="indexers"><Download className="w-4 h-4 mr-1" />Indexers</TabsTrigger>
           <TabsTrigger value="requests"><FileText className="w-4 h-4 mr-1" />Requests</TabsTrigger>
           <TabsTrigger value="users"><Users className="w-4 h-4 mr-1" />Users</TabsTrigger>
@@ -260,8 +261,8 @@ export default function Admin() {
 
         {/* Services Tab */}
         <TabsContent value="services" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {['plex', 'sonarr', 'prowlarr'].map(name => {
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {['plex', 'sonarr', 'radarr', 'prowlarr'].map(name => {
               const s = serviceStatus[name];
               return (
                 <Card key={name} className="bg-card border-border">
