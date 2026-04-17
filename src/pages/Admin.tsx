@@ -472,6 +472,28 @@ export default function Admin() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="text-lg">Radarr Indexers ({radarrIndexers.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {radarrIndexers.map((idx: any) => (
+                    <div key={idx.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{idx.name}</p>
+                        <p className="text-xs text-muted-foreground">{idx.protocol}</p>
+                      </div>
+                      <Badge variant={idx.enableRss ? 'default' : 'secondary'}>
+                        {idx.enableRss ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                  ))}
+                  {radarrIndexers.length === 0 && <p className="text-muted-foreground text-center py-4">No indexers in Radarr. Click "Sync" to add from Prowlarr.</p>}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
