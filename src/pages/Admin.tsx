@@ -16,7 +16,7 @@ export default function Admin() {
   const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
-  const [serviceStatus, setServiceStatus] = useState<Record<string, { online: boolean; version?: string; name?: string }>>({});
+  const [serviceStatus, setServiceStatus] = useState<Record<string, { online: boolean; version?: string; name?: string; error?: string; details?: string }>>({});
   const [checkingServices, setCheckingServices] = useState(false);
 
   // Sonarr state
@@ -93,14 +93,14 @@ export default function Admin() {
     for (const [name, fn] of [['plex', 'plex-proxy'], ['sonarr', 'sonarr-proxy'], ['radarr', 'radarr-proxy'], ['prowlarr', 'prowlarr-proxy']]) {
       try {
         const res = await apiCall(fn, { action: 'status' });
+        const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          const data = await res.json();
           results[name] = { online: true, ...data };
         } else {
-          results[name] = { online: false };
+          results[name] = { online: false, error: data.error || 'Disconnected', details: data.details };
         }
-      } catch {
-        results[name] = { online: false };
+      } catch (err) {
+        results[name] = { online: false, error: err instanceof Error ? err.message : 'Disconnected' };
       }
     }
     setServiceStatus(results);
@@ -146,8 +146,9 @@ export default function Admin() {
       const res = await apiPost('sonarr-proxy', { action: 'add' }, {
         title: show.title,
         tvdbId: show.tvdbId,
-        qualityProfileId: 1,
-        rootFolderPath: '/tv',
+        titleSlug: show.titleSlug,
+        images: show.images,
+        seasons: show.seasons,
         monitored: true,
         seasonFolder: true,
         addOptions: { searchForMissingEpisodes: true },
@@ -193,9 +194,9 @@ export default function Admin() {
       const res = await apiPost('radarr-proxy', { action: 'add' }, {
         title: movie.title,
         tmdbId: movie.tmdbId,
+        titleSlug: movie.titleSlug,
+        images: movie.images,
         year: movie.year,
-        qualityProfileId: 1,
-        rootFolderPath: '/movies',
         monitored: true,
         addOptions: { searchForMovie: true },
       });
@@ -274,10 +275,10 @@ export default function Admin() {
                   <CardContent className="py-6">
                     <div className="flex items-center justify-between mb-3">
                       <p className="font-semibold capitalize text-lg">{name}</p>
-                      <div className={`w-3 h-3 rounded-full ${s?.online ? 'bg-green-500' : checkingServices ? 'bg-yellow-500 animate-pulse' : 'bg-destructive'}`} />
+                      <div className={`w-3 h-3 rounded-full ${s?.online ? 'bg-primary' : checkingServices ? 'bg-muted-foreground animate-pulse' : 'bg-destructive'}`} />
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {checkingServices ? 'Checking...' : s?.online ? `Connected${s.version ? ` (v${s.version})` : ''}${s.name ? ` - ${s.name}` : ''}` : 'Disconnected'}
+                      {checkingServices ? 'Checking...' : s?.online ? `Connected${s.version ? ` (v${s.version})` : ''}${s.name ? ` - ${s.name}` : ''}` : (s?.details || s?.error || 'Disconnected')}
                     </p>
                   </CardContent>
                 </Card>
