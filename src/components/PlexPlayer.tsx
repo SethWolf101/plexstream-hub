@@ -1,0 +1,85 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Hls from 'hls.js';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, Maximize2, Play } from 'lucide-react';
+import { plexStreamUrl, type PlexItem } from '@/lib/plex';
+
+interface PlexPlayerProps {
+  item: PlexItem | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState('');
+  const source = useMemo(() => (item?.ratingKey ? plexStreamUrl(item.ratingKey) : ''), [item?.ratingKey]);
+
+  useEffect(() => {
+    if (!open || !source || !videoRef.current) return;
+
+    const video = videoRef.current;
+    setError('');
+    let hls: Hls | null = null;
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = source;
+      video.play().catch(() => undefined);
+    } else if (Hls.isSupported()) {
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 180,
+      });
+      hls.loadSource(source);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => undefined));
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) setError(data.details || 'Playback failed');
+      });
+    } else {
+      setError('This browser cannot play Plex HLS streams.');
+    }
+
+    return () => {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      hls?.destroy();
+    };
+  }, [open, source]);
+
+  const title = item?.type === 'episode' && item.parentTitle ? `${item.parentTitle} — ${item.title}` : item?.title || 'Player';
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-6xl bg-card border-border p-0 overflow-hidden">
+        <DialogHeader className="px-4 py-3 border-b border-border">
+          <DialogTitle className="text-base sm:text-lg truncate">{title}</DialogTitle>
+        </DialogHeader>
+        <div className="bg-background">
+          <div className="aspect-video w-full">
+            <video ref={videoRef} className="h-full w-full" controls playsInline poster={item?.art || item?.thumb || undefined} />
+          </div>
+          {error && (
+            <div className="flex items-center gap-2 px-4 py-3 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <span>{error}</span>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border">
+            <div className="min-w-0">
+              <p className="font-medium truncate">{title}</p>
+              <p className="text-xs text-muted-foreground">High quality Plex streaming inside Seth&apos;s Streams</p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => videoRef.current?.requestFullscreen?.()}>
+              <Maximize2 className="h-4 w-4 mr-2" /> Fullscreen
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
