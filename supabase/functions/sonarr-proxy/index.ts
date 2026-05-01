@@ -1,83 +1,103 @@
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+});
+
+function cleanBaseUrl(value: string) {
+  let sanitized = value.replace(/\/$/, '');
+  sanitized = sanitized.replace(/\/sonarr\/?$/i, '/sonarr');
+  if (/^https:\/\/\d+\.\d+\.\d+\.\d+/.test(sanitized)) {
+    sanitized = sanitized.replace(/^https:/, 'http:');
   }
+  return sanitized;
+}
+
+async function apiFetch(baseUrl: string, path: string, apiKey: string, init: RequestInit = {}) {
+  const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json', ...(init.headers || {}) };
+  const res = await fetch(`${baseUrl}${path}`, { ...init, headers, signal: AbortSignal.timeout(15000) });
+  const text = await res.text();
+  let data: any = null;
+  if (text) {
+    try { data = JSON.parse(text); } catch { data = text; }
+  }
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
+  }
+  return data;
+}
+
+async function getDefaults(baseUrl: string, apiKey: string) {
+  const [rootFolders, qualityProfiles] = await Promise.all([
+    apiFetch(baseUrl, '/api/v3/rootfolder', apiKey),
+    apiFetch(baseUrl, '/api/v3/qualityprofile', apiKey),
+  ]);
+  const rootFolderPath = rootFolders?.find((f: any) => f.accessible !== false)?.path || rootFolders?.[0]?.path;
+  const qualityProfileId = qualityProfiles?.find((p: any) => /hd|1080|any/i.test(p.name))?.id || qualityProfiles?.[0]?.id;
+  if (!rootFolderPath || !qualityProfileId) {
+    throw new Error('No Sonarr root folder or quality profile found. Add one in Sonarr first.');
+  }
+  return { rootFolderPath, qualityProfileId };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   const SONARR_URL = Deno.env.get('SONARR_URL');
   const SONARR_API_KEY = Deno.env.get('SONARR_API_KEY');
 
-  if (!SONARR_URL || !SONARR_API_KEY) {
-    return new Response(JSON.stringify({ error: 'Sonarr not configured' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
+  if (!SONARR_URL || !SONARR_API_KEY) return json({ error: 'Sonarr not configured' }, 500);
 
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
-  const baseUrl = SONARR_URL.replace(/\/$/, '');
-  const sonarrHeaders = { 'X-Api-Key': SONARR_API_KEY, 'Content-Type': 'application/json' };
+  const baseUrl = cleanBaseUrl(SONARR_URL);
 
   try {
     switch (action) {
       case 'status': {
-        const res = await fetch(`${baseUrl}/api/v3/system/status`, { headers: sonarrHeaders });
-        const data = await res.json();
-        return new Response(JSON.stringify({ online: true, version: data.version }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        const data = await apiFetch(baseUrl, '/api/v3/system/status', SONARR_API_KEY);
+        return json({ online: true, version: data.version, name: data.instanceName });
       }
       case 'series': {
-        const res = await fetch(`${baseUrl}/api/v3/series`, { headers: sonarrHeaders });
-        const data = await res.json();
-        return new Response(JSON.stringify({ series: data }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        const data = await apiFetch(baseUrl, '/api/v3/series', SONARR_API_KEY);
+        return json({ series: data });
       }
       case 'search': {
-        const term = url.searchParams.get('term');
-        const res = await fetch(`${baseUrl}/api/v3/series/lookup?term=${encodeURIComponent(term || '')}`, { headers: sonarrHeaders });
-        const data = await res.json();
-        return new Response(JSON.stringify({ results: data }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        const term = url.searchParams.get('term')?.trim();
+        if (!term) return json({ error: 'Search term required' }, 400);
+        const data = await apiFetch(baseUrl, `/api/v3/series/lookup?term=${encodeURIComponent(term)}`, SONARR_API_KEY);
+        return json({ results: data });
+      }
+      case 'defaults': {
+        return json(await getDefaults(baseUrl, SONARR_API_KEY));
       }
       case 'add': {
         const body = await req.json();
-        const res = await fetch(`${baseUrl}/api/v3/series`, {
-          method: 'POST',
-          headers: sonarrHeaders,
-          body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        return new Response(JSON.stringify(data), {
-          status: res.status,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        const defaults = await getDefaults(baseUrl, SONARR_API_KEY);
+        const payload = {
+          ...body,
+          qualityProfileId: body.qualityProfileId || defaults.qualityProfileId,
+          rootFolderPath: body.rootFolderPath || defaults.rootFolderPath,
+          monitored: body.monitored ?? true,
+          seasonFolder: body.seasonFolder ?? true,
+          addOptions: body.addOptions || { searchForMissingEpisodes: true },
+        };
+        const data = await apiFetch(baseUrl, '/api/v3/series', SONARR_API_KEY, { method: 'POST', body: JSON.stringify(payload) });
+        return json(data, 201);
       }
       case 'indexers': {
-        const res = await fetch(`${baseUrl}/api/v3/indexer`, { headers: sonarrHeaders });
-        const data = await res.json();
-        return new Response(JSON.stringify({ indexers: data }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        const data = await apiFetch(baseUrl, '/api/v3/indexer', SONARR_API_KEY);
+        return json({ indexers: data });
       }
       default:
-        return new Response(JSON.stringify({ error: 'Unknown action' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return json({ error: 'Unknown action' }, 400);
     }
   } catch (err) {
     console.error('Sonarr proxy error:', err);
-    return new Response(JSON.stringify({ error: 'Failed to connect to Sonarr' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return json({ error: 'Failed to connect to Sonarr', details: err instanceof Error ? err.message : 'Unknown error', baseUrl }, 502);
   }
 });
