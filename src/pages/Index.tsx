@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import HeroBanner from '@/components/HeroBanner';
 import ContentRow from '@/components/ContentRow';
 import MediaDetailModal from '@/components/MediaDetailModal';
+import PlexPlayer from '@/components/PlexPlayer';
 
 interface PlexItem {
   ratingKey: string;
@@ -21,6 +22,7 @@ export default function Index() {
   const [recentlyAdded, setRecentlyAdded] = useState<PlexItem[]>([]);
   const [libraries, setLibraries] = useState<{ title: string; items: PlexItem[] }[]>([]);
   const [selectedItem, setSelectedItem] = useState<PlexItem | null>(null);
+  const [playingItem, setPlayingItem] = useState<PlexItem | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      <HeroBanner items={recentlyAdded.slice(0, 5)} onInfo={(item) => setSelectedItem(item as PlexItem)} />
+      <HeroBanner items={recentlyAdded.slice(0, 5)} onPlay={(item) => setPlayingItem(item as PlexItem)} onInfo={(item) => setSelectedItem(item as PlexItem)} />
       <div className="relative z-10 -mt-20 space-y-2">
         {loading ? (
           <div className="px-4 sm:px-8 lg:px-16 py-8">
@@ -94,7 +96,8 @@ export default function Index() {
           </>
         )}
       </div>
-      <MediaDetailModal open={!!selectedItem} onOpenChange={() => setSelectedItem(null)} item={selectedItem} />
+      <MediaDetailModal open={!!selectedItem} onOpenChange={() => setSelectedItem(null)} item={selectedItem} onPlay={(item) => setPlayingItem(item as PlexItem)} />
+      <PlexPlayer open={!!playingItem} onOpenChange={() => setPlayingItem(null)} item={playingItem} />
     </div>
   );
 }

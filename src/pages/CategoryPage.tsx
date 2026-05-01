@@ -1,24 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import HeroBanner from '@/components/HeroBanner';
 import ContentRow from '@/components/ContentRow';
 import MediaDetailModal from '@/components/MediaDetailModal';
-
-interface PlexItem {
-  ratingKey: string;
-  title: string;
-  summary: string;
-  thumb: string;
-  art: string;
-  year: number;
-  type?: string;
-  rating?: number;
-  contentRating?: string;
-  duration?: number;
-  genre?: string;
-}
+import PlexPlayer from '@/components/PlexPlayer';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RefreshCw, Search } from 'lucide-react';
+import { plexApi, splitGenres, type PlexItem, type PlexLibrary } from '@/lib/plex';
 
 interface CategoryPageProps {
-  /** Plex library type: 'movie' or 'show' */
   libraryType: 'movie' | 'show';
   heading: string;
   subheading: string;
@@ -28,50 +19,70 @@ export default function CategoryPage({ libraryType, heading, subheading }: Categ
   const [libraries, setLibraries] = useState<{ title: string; items: PlexItem[] }[]>([]);
   const [hero, setHero] = useState<PlexItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<PlexItem | null>(null);
+  const [playingItem, setPlayingItem] = useState<PlexItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [genre, setGenre] = useState('all');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('title');
 
-  const apiCall = async (params: Record<string, string>) => {
-    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const qs = new URLSearchParams(params).toString();
-    return fetch(`https://${projectId}.supabase.co/functions/v1/plex-proxy?${qs}`, {
-      headers: { 'Authorization': `Bearer ${anonKey}`, 'apikey': anonKey },
-    });
-  };
+  const fetchCategory = useCallback(async (showRefresh = false) => {
+    if (showRefresh) setRefreshing(true);
+    try {
+      const data = await plexApi({ action: 'libraries' });
+      const filtered = (data.libraries || []).filter((l: PlexLibrary) => l.type === libraryType);
+      const libData = await Promise.all(
+        filtered.map(async (lib: PlexLibrary) => {
+          const d = await plexApi({ action: 'library', sectionId: lib.key, size: '500' });
+          return { title: lib.title, items: d.items || [] };
+        })
+      );
+      setLibraries(libData);
+      setHero(libData.flatMap((l) => l.items).slice(0, 5));
+    } catch (err) {
+      console.error('Failed to load category:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [libraryType]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const libRes = await apiCall({ action: 'libraries' });
-        if (!libRes.ok) return;
-        const data = await libRes.json();
-        const filtered = (data.libraries || []).filter((l: any) => l.type === libraryType);
-        const libData = await Promise.all(
-          filtered.map(async (lib: any) => {
-            const itemsRes = await apiCall({ action: 'library', sectionId: lib.key });
-            if (itemsRes.ok) {
-              const d = await itemsRes.json();
-              return { title: lib.title, items: d.items || [] };
-            }
-            return { title: lib.title, items: [] };
-          })
-        );
-        setLibraries(libData);
-        // Build hero from first 5 items across all sections
-        const all: PlexItem[] = libData.flatMap(l => l.items).slice(0, 5);
-        setHero(all);
-      } catch (err) {
-        console.error('Failed to load category:', err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [libraryType]);
+    fetchCategory();
+    const interval = window.setInterval(() => fetchCategory(true), 60000);
+    const onFocus = () => fetchCategory(true);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchCategory]);
+
+  const genres = useMemo(() => {
+    const all = new Set<string>();
+    libraries.flatMap((lib) => lib.items).forEach((item) => splitGenres(item).forEach((g) => all.add(g)));
+    return Array.from(all).sort((a, b) => a.localeCompare(b));
+  }, [libraries]);
+
+  const filteredLibraries = useMemo(() => libraries.map((lib) => {
+    const q = search.trim().toLowerCase();
+    const items = lib.items
+      .filter((item) => genre === 'all' || splitGenres(item).includes(genre))
+      .filter((item) => !q || item.title.toLowerCase().includes(q))
+      .sort((a, b) => {
+        if (sort === 'year') return (b.year || 0) - (a.year || 0);
+        if (sort === 'rating') return (b.rating || 0) - (a.rating || 0);
+        return a.title.localeCompare(b.title);
+      });
+    return { ...lib, items };
+  }), [genre, libraries, search, sort]);
+
+  const hasResults = filteredLibraries.some((lib) => lib.items.length > 0);
 
   return (
     <div className="min-h-screen bg-background">
       {hero.length > 0 ? (
-        <HeroBanner items={hero} onInfo={(item) => setSelectedItem(item as PlexItem)} />
+        <HeroBanner items={hero} onPlay={(item) => setPlayingItem(item as PlexItem)} onInfo={(item) => setSelectedItem(item as PlexItem)} />
       ) : (
         <div className="pt-32 pb-16 px-4 sm:px-8 lg:px-16 max-w-7xl mx-auto">
           <h1 className="text-4xl sm:text-5xl font-bold mb-3">{heading}</h1>
@@ -79,7 +90,46 @@ export default function CategoryPage({ libraryType, heading, subheading }: Categ
         </div>
       )}
 
-      <div className="relative z-10 -mt-20 space-y-2">
+      <div className="relative z-10 -mt-20 space-y-6 pb-12">
+        <div className="px-4 sm:px-8 lg:px-16">
+          <div className="flex flex-col lg:flex-row gap-3 lg:items-center justify-between bg-background/80 backdrop-blur-md border border-border rounded-md p-3">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Search ${heading.toLowerCase()}...`}
+                className="pl-9 bg-secondary border-border"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,220px)_minmax(0,160px)_auto] gap-3">
+              <Select value={genre} onValueChange={setGenre}>
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="Genre" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All genres</SelectItem>
+                  {genres.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={sort} onValueChange={setSort}>
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="title">A-Z</SelectItem>
+                  <SelectItem value="year">Newest</SelectItem>
+                  <SelectItem value="rating">Top rated</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="secondary" onClick={() => fetchCategory(true)} disabled={refreshing}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Scan
+              </Button>
+            </div>
+          </div>
+        </div>
+
         {loading ? (
           <div className="px-4 sm:px-8 lg:px-16 py-8">
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -95,13 +145,16 @@ export default function CategoryPage({ libraryType, heading, subheading }: Categ
               Add a {libraryType === 'movie' ? 'Movies' : 'TV Shows'} library in your Plex server to see content here.
             </p>
           </div>
-        ) : (
-          libraries.map(lib => (
+        ) : hasResults ? (
+          filteredLibraries.map((lib) => (
             <ContentRow key={lib.title} title={lib.title} items={lib.items} onItemClick={(item) => setSelectedItem(item as PlexItem)} />
           ))
+        ) : (
+          <p className="text-center text-muted-foreground py-12">No {heading.toLowerCase()} match these filters.</p>
         )}
       </div>
-      <MediaDetailModal open={!!selectedItem} onOpenChange={() => setSelectedItem(null)} item={selectedItem} />
+      <MediaDetailModal open={!!selectedItem} onOpenChange={() => setSelectedItem(null)} item={selectedItem} onPlay={(item) => setPlayingItem(item)} />
+      <PlexPlayer open={!!playingItem} onOpenChange={() => setPlayingItem(null)} item={playingItem} />
     </div>
   );
 }
