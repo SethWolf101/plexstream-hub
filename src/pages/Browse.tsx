@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import ContentRow from '@/components/ContentRow';
 import MediaDetailModal from '@/components/MediaDetailModal';
+import PlexPlayer from '@/components/PlexPlayer';
 
 interface PlexItem {
   ratingKey: string;
@@ -22,6 +23,7 @@ export default function Browse() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PlexItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<PlexItem | null>(null);
+  const [playingItem, setPlayingItem] = useState<PlexItem | null>(null);
   const [searching, setSearching] = useState(false);
 
   useEffect(() => {
@@ -92,7 +94,8 @@ export default function Browse() {
         <p className="text-center text-muted-foreground">No results found for "{query}"</p>
       )}
 
-      <MediaDetailModal open={!!selectedItem} onOpenChange={() => setSelectedItem(null)} item={selectedItem} />
+      <MediaDetailModal open={!!selectedItem} onOpenChange={() => setSelectedItem(null)} item={selectedItem} onPlay={(item) => setPlayingItem(item as PlexItem)} />
+      <PlexPlayer open={!!playingItem} onOpenChange={() => setPlayingItem(null)} item={playingItem} />
     </div>
   );
 }

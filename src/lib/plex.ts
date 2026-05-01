@@ -1,9 +1,9 @@
 export interface PlexItem {
   ratingKey: string;
   title: string;
-  summary?: string;
-  thumb?: string;
-  art?: string;
+  summary: string;
+  thumb: string;
+  art: string;
   year?: number;
   type?: string;
   rating?: number;
