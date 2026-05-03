@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
         const res = await fetchPlex(baseUrl, hlsPath, PLEX_TOKEN, { headers: { Accept: 'application/vnd.apple.mpegurl,*/*' } });
         const playlist = await res.text();
         if (!res.ok) return response({ error: 'Plex could not start the stream', details: playlist.substring(0, 500) }, 502);
-        return response(rewritePlaylist(playlist, req.url, baseUrl, SUPABASE_ANON_KEY), 200, 'application/vnd.apple.mpegurl');
+        return response(rewritePlaylist(playlist, req.url, `${baseUrl}/`, SUPABASE_ANON_KEY), 200, 'application/vnd.apple.mpegurl');
       }
       case 'segment': {
         const path = url.searchParams.get('path');
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('mpegurl') || path.includes('.m3u8')) {
           const playlist = await res.text();
-          return response(rewritePlaylist(playlist, req.url, baseUrl, SUPABASE_ANON_KEY), 200, 'application/vnd.apple.mpegurl');
+          return response(rewritePlaylist(playlist, req.url, upstream, SUPABASE_ANON_KEY), 200, 'application/vnd.apple.mpegurl');
         }
         return new Response(res.body, {
           status: 200,
@@ -174,16 +174,15 @@ Deno.serve(async (req) => {
   }
 });
 
-function rewritePlaylist(playlist: string, requestUrl: string, baseUrl: string, anonKey: string) {
-  const origin = new URL(requestUrl).origin;
-  const pathname = new URL(requestUrl).pathname;
+function rewritePlaylist(playlist: string, requestUrl: string, relativeBaseUrl: string, anonKey: string) {
+  const functionUrl = `${Deno.env.get('SUPABASE_URL') || new URL(requestUrl).origin}/functions/v1/plex-proxy`;
   return playlist.split('\n').map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
-    const absolute = trimmed.startsWith('http') ? trimmed : `${baseUrl}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`;
+    const absolute = new URL(trimmed, relativeBaseUrl).href;
     const qs = new URLSearchParams({ action: 'segment', path: absolute });
     if (anonKey) qs.set('apikey', anonKey);
-    return `${origin}${pathname}?${qs.toString()}`;
+    return `${functionUrl}?${qs.toString()}`;
   }).join('\n');
 }
 
