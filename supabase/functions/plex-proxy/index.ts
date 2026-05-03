@@ -182,15 +182,39 @@ function rewritePlaylist(playlist: string, requestUrl: string, baseUrl: string, 
   }).join('\n');
 }
 
+async function resolvePlayableRatingKey(baseUrl: string, ratingKey: string, token: string) {
+  const metadata = await plexJson(baseUrl, `/library/metadata/${ratingKey}`, token);
+  const item = metadata?.MediaContainer?.Metadata?.[0];
+  if (!item || item.type === 'movie' || item.type === 'episode') return ratingKey;
+
+  const leavesPath = item.type === 'season'
+    ? `/library/metadata/${ratingKey}/children`
+    : `/library/metadata/${ratingKey}/allLeaves`;
+  const leaves = await plexJson(baseUrl, leavesPath, token);
+  const episode = (leaves?.MediaContainer?.Metadata || []).find((entry: any) => entry.type === 'episode' && entry.Media?.[0]?.Part?.[0]?.key);
+  if (!episode?.ratingKey) throw new Error('No playable episode found for this show.');
+  return episode.ratingKey;
+}
+
+function proxiedImageUrl(path: string | undefined, anonKey: string) {
+  if (!path) return '';
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  if (!supabaseUrl) return '';
+  const qs = new URLSearchParams({ action: 'image', path });
+  if (anonKey) qs.set('apikey', anonKey);
+  return `${supabaseUrl}/functions/v1/plex-proxy?${qs.toString()}`;
+}
+
 function transformMedia(m: any, baseUrl: string, token: string) {
   const media = m.Media?.[0];
   const part = media?.Part?.[0];
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
   return {
     ratingKey: m.ratingKey,
     title: m.title,
     summary: m.summary || '',
-    thumb: m.thumb ? `${baseUrl}${m.thumb}?X-Plex-Token=${token}` : '',
-    art: m.art ? `${baseUrl}${m.art}?X-Plex-Token=${token}` : (m.parentThumb ? `${baseUrl}${m.parentThumb}?X-Plex-Token=${token}` : ''),
+    thumb: proxiedImageUrl(m.thumb, anonKey),
+    art: proxiedImageUrl(m.art || m.parentThumb || m.grandparentArt || m.grandparentThumb, anonKey),
     year: m.year,
     type: m.type,
     rating: m.rating,
