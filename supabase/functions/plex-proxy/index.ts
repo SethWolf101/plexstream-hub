@@ -180,13 +180,10 @@ function rewritePlaylist(playlist: string, requestUrl: string, relativeBaseUrl: 
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
     const relativeOrigin = new URL(relativeBaseUrl).origin;
-    const absolute = trimmed.startsWith('http')
-      ? trimmed
-      : trimmed.startsWith('/session/')
-        ? `${relativeOrigin}/video/:/transcode/universal${trimmed}`
-        : trimmed.startsWith('/')
-          ? `${relativeOrigin}${trimmed}`
-          : new URL(trimmed, relativeBaseUrl).href;
+    const resolved = new URL(trimmed, relativeBaseUrl);
+    const absolute = resolved.pathname.startsWith('/session/')
+      ? `${resolved.origin}/video/:/transcode/universal${resolved.pathname}${resolved.search}`
+      : resolved.href;
     const qs = new URLSearchParams({ action: 'segment', path: absolute });
     if (anonKey) qs.set('apikey', anonKey);
     return `${functionUrl}?${qs.toString()}`;
