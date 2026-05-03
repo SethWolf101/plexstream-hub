@@ -147,11 +147,16 @@ Deno.serve(async (req) => {
         const upstream = path.startsWith('http') ? path : `${baseUrl}${path}`;
         const res = await fetchPlex(baseUrl, upstream, PLEX_TOKEN, { headers: { Accept: '*/*' } });
         if (!res.ok) return response({ error: 'Plex stream segment failed', status: res.status }, 502);
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('mpegurl') || path.includes('.m3u8')) {
+          const playlist = await res.text();
+          return response(rewritePlaylist(playlist, req.url, baseUrl, SUPABASE_ANON_KEY), 200, 'application/vnd.apple.mpegurl');
+        }
         return new Response(res.body, {
           status: 200,
           headers: {
             ...corsHeaders,
-            'Content-Type': res.headers.get('content-type') || 'application/octet-stream',
+            'Content-Type': contentType || 'application/octet-stream',
             'Cache-Control': 'no-store',
           },
         });
