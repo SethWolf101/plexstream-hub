@@ -179,7 +179,6 @@ function rewritePlaylist(playlist: string, requestUrl: string, relativeBaseUrl: 
   return playlist.split('\n').map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
-    const relativeOrigin = new URL(relativeBaseUrl).origin;
     const resolved = new URL(trimmed, relativeBaseUrl);
     const absolute = resolved.pathname.startsWith('/session/')
       ? `${resolved.origin}/video/:/transcode/universal${resolved.pathname}${resolved.search}`
