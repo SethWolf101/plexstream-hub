@@ -115,16 +115,31 @@ Deno.serve(async (req) => {
         const data = await plexJson(baseUrl, `/library/metadata/${ratingKey}/allLeaves`, PLEX_TOKEN);
         return response({ items: (data?.MediaContainer?.Metadata || []).map((m: any) => transformMedia(m, baseUrl, PLEX_TOKEN)) });
       }
+      case 'image': {
+        const path = url.searchParams.get('path');
+        if (!path || !path.startsWith('/')) return response({ error: 'valid image path required' }, 400);
+        const res = await fetchPlex(baseUrl, path, PLEX_TOKEN, { headers: { Accept: 'image/*,*/*' } });
+        if (!res.ok) return response({ error: 'Plex image failed', status: res.status }, 502);
+        return new Response(res.body, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': res.headers.get('content-type') || 'image/jpeg',
+            'Cache-Control': 'public, max-age=86400',
+          },
+        });
+      }
       case 'hls': {
         const ratingKey = url.searchParams.get('ratingKey');
         if (!ratingKey) return response({ error: 'ratingKey required' }, 400);
-        const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
+        const playableRatingKey = await resolvePlayableRatingKey(baseUrl, ratingKey, PLEX_TOKEN);
+        const path = encodeURIComponent(`/library/metadata/${playableRatingKey}`);
         const session = crypto.randomUUID().replaceAll('-', '');
-        const hlsPath = `/video/:/transcode/universal/start.m3u8?path=${path}&mediaIndex=0&partIndex=0&protocol=hls&offset=0&fastSeek=1&directPlay=0&directStream=1&copyts=1&subtitleSize=100&audioBoost=100&maxVideoBitrate=40000&videoQuality=100&session=${session}`;
+        const hlsPath = `/video/:/transcode/universal/start.m3u8?path=${path}&mediaIndex=0&partIndex=0&protocol=hls&offset=0&fastSeek=1&directPlay=0&directStream=0&subtitleSize=100&subtitles=burn&audioBoost=100&maxVideoBitrate=40000&videoQuality=100&videoResolution=1920x1080&location=wan&mediaBufferSize=102400&session=${session}&X-Plex-Platform=Chrome&X-Plex-Device=Chrome&X-Plex-Device-Name=Seths%20Streams&X-Plex-Client-Identifier=seths-streams-${session}&X-Plex-Product=Seths%20Streams&X-Plex-Version=1.0`;
         const res = await fetchPlex(baseUrl, hlsPath, PLEX_TOKEN, { headers: { Accept: 'application/vnd.apple.mpegurl,*/*' } });
         const playlist = await res.text();
         if (!res.ok) return response({ error: 'Plex could not start the stream', details: playlist.substring(0, 500) }, 502);
-        return response(rewritePlaylist(playlist, req.url, baseUrl, SUPABASE_ANON_KEY), 200, 'application/vnd.apple.mpegurl');
+        return response(rewritePlaylist(playlist, req.url, `${baseUrl}/`, SUPABASE_ANON_KEY), 200, 'application/vnd.apple.mpegurl');
       }
       case 'segment': {
         const path = url.searchParams.get('path');
@@ -132,17 +147,22 @@ Deno.serve(async (req) => {
         const upstream = path.startsWith('http') ? path : `${baseUrl}${path}`;
         const res = await fetchPlex(baseUrl, upstream, PLEX_TOKEN, { headers: { Accept: '*/*' } });
         if (!res.ok) return response({ error: 'Plex stream segment failed', status: res.status }, 502);
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('mpegurl') || path.includes('.m3u8')) {
+          const playlist = await res.text();
+          return response(rewritePlaylist(playlist, req.url, upstream, SUPABASE_ANON_KEY), 200, 'application/vnd.apple.mpegurl');
+        }
         return new Response(res.body, {
           status: 200,
           headers: {
             ...corsHeaders,
-            'Content-Type': res.headers.get('content-type') || 'application/octet-stream',
+            'Content-Type': contentType || 'application/octet-stream',
             'Cache-Control': 'no-store',
           },
         });
       }
       default:
-        return response({ error: 'Unknown action. Use: status, libraries, library, recently-added, search, metadata, children, all-leaves, hls, segment' }, 400);
+        return response({ error: 'Unknown action. Use: status, libraries, library, recently-added, search, metadata, children, all-leaves, image, hls, segment' }, 400);
     }
   } catch (err) {
     console.error('Plex proxy error:', err);
@@ -154,28 +174,54 @@ Deno.serve(async (req) => {
   }
 });
 
-function rewritePlaylist(playlist: string, requestUrl: string, baseUrl: string, anonKey: string) {
-  const origin = new URL(requestUrl).origin;
-  const pathname = new URL(requestUrl).pathname;
+function rewritePlaylist(playlist: string, requestUrl: string, relativeBaseUrl: string, anonKey: string) {
+  const functionUrl = `${Deno.env.get('SUPABASE_URL') || new URL(requestUrl).origin}/functions/v1/plex-proxy`;
   return playlist.split('\n').map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
-    const absolute = trimmed.startsWith('http') ? trimmed : `${baseUrl}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`;
+    const resolved = new URL(trimmed, relativeBaseUrl);
+    const absolute = resolved.pathname.startsWith('/session/')
+      ? `${resolved.origin}/video/:/transcode/universal${resolved.pathname}${resolved.search}`
+      : resolved.href;
     const qs = new URLSearchParams({ action: 'segment', path: absolute });
     if (anonKey) qs.set('apikey', anonKey);
-    return `${origin}${pathname}?${qs.toString()}`;
+    return `${functionUrl}?${qs.toString()}`;
   }).join('\n');
+}
+
+async function resolvePlayableRatingKey(baseUrl: string, ratingKey: string, token: string) {
+  const metadata = await plexJson(baseUrl, `/library/metadata/${ratingKey}`, token);
+  const item = metadata?.MediaContainer?.Metadata?.[0];
+  if (!item || item.type === 'movie' || item.type === 'episode') return ratingKey;
+
+  const leavesPath = item.type === 'season'
+    ? `/library/metadata/${ratingKey}/children`
+    : `/library/metadata/${ratingKey}/allLeaves`;
+  const leaves = await plexJson(baseUrl, leavesPath, token);
+  const episode = (leaves?.MediaContainer?.Metadata || []).find((entry: any) => entry.type === 'episode' && entry.Media?.[0]?.Part?.[0]?.key);
+  if (!episode?.ratingKey) throw new Error('No playable episode found for this show.');
+  return episode.ratingKey;
+}
+
+function proxiedImageUrl(path: string | undefined, anonKey: string) {
+  if (!path) return '';
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  if (!supabaseUrl) return '';
+  const qs = new URLSearchParams({ action: 'image', path });
+  if (anonKey) qs.set('apikey', anonKey);
+  return `${supabaseUrl}/functions/v1/plex-proxy?${qs.toString()}`;
 }
 
 function transformMedia(m: any, baseUrl: string, token: string) {
   const media = m.Media?.[0];
   const part = media?.Part?.[0];
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
   return {
     ratingKey: m.ratingKey,
     title: m.title,
     summary: m.summary || '',
-    thumb: m.thumb ? `${baseUrl}${m.thumb}?X-Plex-Token=${token}` : '',
-    art: m.art ? `${baseUrl}${m.art}?X-Plex-Token=${token}` : (m.parentThumb ? `${baseUrl}${m.parentThumb}?X-Plex-Token=${token}` : ''),
+    thumb: proxiedImageUrl(m.thumb, anonKey),
+    art: proxiedImageUrl(m.art || m.parentThumb || m.grandparentArt || m.grandparentThumb, anonKey),
     year: m.year,
     type: m.type,
     rating: m.rating,
