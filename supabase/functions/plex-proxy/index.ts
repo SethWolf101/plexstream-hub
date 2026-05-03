@@ -179,11 +179,14 @@ function rewritePlaylist(playlist: string, requestUrl: string, relativeBaseUrl: 
   return playlist.split('\n').map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
+    const relativeOrigin = new URL(relativeBaseUrl).origin;
     const absolute = trimmed.startsWith('http')
       ? trimmed
-      : trimmed.startsWith('/')
-        ? `${new URL(relativeBaseUrl).origin}${trimmed}`
-        : new URL(trimmed, relativeBaseUrl).href;
+      : trimmed.startsWith('/session/')
+        ? `${relativeOrigin}/video/:/transcode/universal${trimmed}`
+        : trimmed.startsWith('/')
+          ? `${relativeOrigin}${trimmed}`
+          : new URL(trimmed, relativeBaseUrl).href;
     const qs = new URLSearchParams({ action: 'segment', path: absolute });
     if (anonKey) qs.set('apikey', anonKey);
     return `${functionUrl}?${qs.toString()}`;
