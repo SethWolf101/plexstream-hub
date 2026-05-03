@@ -115,10 +115,25 @@ Deno.serve(async (req) => {
         const data = await plexJson(baseUrl, `/library/metadata/${ratingKey}/allLeaves`, PLEX_TOKEN);
         return response({ items: (data?.MediaContainer?.Metadata || []).map((m: any) => transformMedia(m, baseUrl, PLEX_TOKEN)) });
       }
+      case 'image': {
+        const path = url.searchParams.get('path');
+        if (!path || !path.startsWith('/')) return response({ error: 'valid image path required' }, 400);
+        const res = await fetchPlex(baseUrl, path, PLEX_TOKEN, { headers: { Accept: 'image/*,*/*' } });
+        if (!res.ok) return response({ error: 'Plex image failed', status: res.status }, 502);
+        return new Response(res.body, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': res.headers.get('content-type') || 'image/jpeg',
+            'Cache-Control': 'public, max-age=86400',
+          },
+        });
+      }
       case 'hls': {
         const ratingKey = url.searchParams.get('ratingKey');
         if (!ratingKey) return response({ error: 'ratingKey required' }, 400);
-        const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
+        const playableRatingKey = await resolvePlayableRatingKey(baseUrl, ratingKey, PLEX_TOKEN);
+        const path = encodeURIComponent(`/library/metadata/${playableRatingKey}`);
         const session = crypto.randomUUID().replaceAll('-', '');
         const hlsPath = `/video/:/transcode/universal/start.m3u8?path=${path}&mediaIndex=0&partIndex=0&protocol=hls&offset=0&fastSeek=1&directPlay=0&directStream=1&copyts=1&subtitleSize=100&audioBoost=100&maxVideoBitrate=40000&videoQuality=100&session=${session}`;
         const res = await fetchPlex(baseUrl, hlsPath, PLEX_TOKEN, { headers: { Accept: 'application/vnd.apple.mpegurl,*/*' } });
@@ -142,7 +157,7 @@ Deno.serve(async (req) => {
         });
       }
       default:
-        return response({ error: 'Unknown action. Use: status, libraries, library, recently-added, search, metadata, children, all-leaves, hls, segment' }, 400);
+        return response({ error: 'Unknown action. Use: status, libraries, library, recently-added, search, metadata, children, all-leaves, image, hls, segment' }, 400);
     }
   } catch (err) {
     console.error('Plex proxy error:', err);

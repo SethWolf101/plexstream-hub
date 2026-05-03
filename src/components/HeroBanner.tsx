@@ -7,8 +7,9 @@ interface MediaItem {
   summary: string;
   thumb: string;
   art: string;
-  year: number;
+  year?: number;
   ratingKey: string;
+  type?: string;
 }
 
 interface HeroBannerProps {
