@@ -58,20 +58,6 @@ async function apiFetch(baseUrl: string, path: string, apiKey: string, init: Req
   throw lastError;
 }
 
-async function unusedLegacyApiFetch(baseUrl: string, path: string, apiKey: string, init: RequestInit = {}) {
-  const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json', ...(init.headers || {}) };
-  const res = await fetch(buildApiUrl(baseUrl, path), { ...init, headers, signal: AbortSignal.timeout(8000) });
-  const text = await res.text();
-  let data: any = null;
-  if (text) {
-    try { data = JSON.parse(text); } catch { data = text; }
-  }
-  if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
-  }
-  return data;
-}
-
 async function getDefaults(baseUrl: string, apiKey: string) {
   const [rootFolders, qualityProfiles] = await Promise.all([
     apiFetch(baseUrl, '/api/v3/rootfolder', apiKey),
