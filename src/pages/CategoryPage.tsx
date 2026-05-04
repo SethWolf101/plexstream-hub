@@ -147,7 +147,7 @@ export default function CategoryPage({ libraryType, heading, subheading }: Categ
           </div>
         ) : hasResults ? (
           filteredLibraries.map((lib) => (
-            <ContentRow key={lib.title} title={lib.title} items={lib.items} onItemClick={(item) => setSelectedItem(item as PlexItem)} />
+            <ContentRow key={lib.title} title={lib.title} items={lib.items} layout="grid" onItemClick={(item) => setSelectedItem(item as PlexItem)} />
           ))
         ) : (
           <p className="text-center text-muted-foreground py-12">No {heading.toLowerCase()} match these filters.</p>
