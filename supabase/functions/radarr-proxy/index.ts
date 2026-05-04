@@ -9,17 +9,33 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 function cleanBaseUrl(value: string) {
-  let sanitized = value.replace(/\/$/, '');
-  sanitized = sanitized.replace(/\/radarr\/?$/i, '/radarr');
+  let sanitized = value.trim().replace(/\/$/, '');
+  sanitized = sanitized.replace(/\/web\/?$/i, '');
+  sanitized = sanitized.replace(/\/radarr\/?$/i, '');
   if (/^https:\/\/\d+\.\d+\.\d+\.\d+/.test(sanitized)) {
     sanitized = sanitized.replace(/^https:/, 'http:');
   }
   return sanitized;
 }
 
+function buildApiUrl(baseUrl: string, apiPath: string) {
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
+  return `${baseUrl}${path}`;
+}
+
+function describeConnectionError(err: unknown, baseUrl: string) {
+  if (err instanceof DOMException && err.name === 'TimeoutError') {
+    return `Timed out connecting to ${baseUrl}. Make sure this Radarr URL is publicly reachable from Lovable Cloud and not only available on your home network.`;
+  }
+  if (err instanceof TypeError) {
+    return `Could not reach ${baseUrl}. Check the URL, port forwarding, firewall, and whether Radarr is running.`;
+  }
+  return err instanceof Error ? err.message : 'Unknown error';
+}
+
 async function apiFetch(baseUrl: string, path: string, apiKey: string, init: RequestInit = {}) {
   const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json', ...(init.headers || {}) };
-  const res = await fetch(`${baseUrl}${path}`, { ...init, headers, signal: AbortSignal.timeout(15000) });
+  const res = await fetch(buildApiUrl(baseUrl, path), { ...init, headers, signal: AbortSignal.timeout(8000) });
   const text = await res.text();
   let data: any = null;
   if (text) {
@@ -97,6 +113,6 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error('Radarr proxy error:', err);
-    return json({ error: 'Failed to connect to Radarr', details: err instanceof Error ? err.message : 'Unknown error', baseUrl }, 502);
+    return json({ error: 'Failed to connect to Radarr', details: describeConnectionError(err, baseUrl), baseUrl }, 502);
   }
 });
