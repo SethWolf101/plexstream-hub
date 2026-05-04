@@ -14,9 +14,10 @@ interface ContentRowProps {
   title: string;
   items: ContentItem[];
   onItemClick?: (item: ContentItem) => void;
+  layout?: 'row' | 'grid';
 }
 
-const ContentRow = forwardRef<HTMLDivElement, ContentRowProps>(function ContentRow({ title, items, onItemClick }, ref) {
+const ContentRow = forwardRef<HTMLDivElement, ContentRowProps>(function ContentRow({ title, items, onItemClick, layout = 'row' }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (dir: 'left' | 'right') => {
@@ -31,21 +32,28 @@ const ContentRow = forwardRef<HTMLDivElement, ContentRowProps>(function ContentR
     <div ref={ref} className="mb-8">
       <h2 className="text-xl font-semibold mb-3 px-4 sm:px-8 lg:px-16">{title}</h2>
       <div className="group relative">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background"
-          onClick={() => scroll('left')}
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
+        {layout === 'row' && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background"
+            onClick={() => scroll('left')}
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        )}
 
-        <div ref={scrollRef} className="flex gap-2 overflow-x-auto hide-scrollbar px-4 sm:px-8 lg:px-16">
+        <div
+          ref={scrollRef}
+          className={layout === 'grid'
+            ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3 px-4 sm:px-8 lg:px-16'
+            : 'flex gap-2 overflow-x-auto hide-scrollbar px-4 sm:px-8 lg:px-16'}
+        >
           {items.map(item => (
             <button
               key={item.ratingKey}
               onClick={() => onItemClick?.(item)}
-              className="flex-shrink-0 w-[160px] sm:w-[180px] group/card transition-transform hover:scale-105"
+              className={layout === 'grid' ? 'min-w-0 text-left group/card transition-transform hover:scale-105' : 'flex-shrink-0 w-[160px] sm:w-[180px] text-left group/card transition-transform hover:scale-105'}
             >
               <div className="aspect-[2/3] rounded-md overflow-hidden bg-muted mb-2">
                 {item.thumb ? (
@@ -60,14 +68,16 @@ const ContentRow = forwardRef<HTMLDivElement, ContentRowProps>(function ContentR
           ))}
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background"
-          onClick={() => scroll('right')}
-        >
-          <ChevronRight className="w-6 h-6" />
-        </Button>
+        {layout === 'row' && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background"
+            onClick={() => scroll('right')}
+          >
+            <ChevronRight className="w-6 h-6" />
+          </Button>
+        )}
       </div>
     </div>
   );

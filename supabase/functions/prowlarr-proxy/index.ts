@@ -9,22 +9,51 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 function cleanBaseUrl(value: string, appName?: string) {
-  let sanitized = value.replace(/\/$/, '');
+  let sanitized = value.trim().replace(/\/$/, '');
+  sanitized = sanitized.replace(/\/web\/?$/i, '');
   if (appName) sanitized = sanitized.replace(new RegExp(`/${appName}/?$`, 'i'), `/${appName}`);
   if (/^https:\/\/\d+\.\d+\.\d+\.\d+/.test(sanitized)) sanitized = sanitized.replace(/^https:/, 'http:');
   return sanitized;
 }
 
+function buildApiUrl(baseUrl: string, apiPath: string) {
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
+  return `${baseUrl}${path}`;
+}
+
+function fallbackBaseUrls(baseUrl: string, appName = 'prowlarr') {
+  const stripped = baseUrl.replace(new RegExp(`/${appName}$`, 'i'), '');
+  return stripped === baseUrl ? [baseUrl] : [baseUrl, stripped];
+}
+
+function describeConnectionError(err: unknown, baseUrl: string) {
+  if (err instanceof DOMException && err.name === 'TimeoutError') {
+    return `Timed out connecting to ${baseUrl}. Make sure this Prowlarr URL is publicly reachable from Lovable Cloud and not only available on your home network.`;
+  }
+  if (err instanceof TypeError) {
+    return `Could not reach ${baseUrl}. Check the URL, port forwarding, firewall, and whether Prowlarr is running.`;
+  }
+  return err instanceof Error ? err.message : 'Unknown error';
+}
+
 async function apiFetch(baseUrl: string, path: string, apiKey: string, init: RequestInit = {}) {
   const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json', ...(init.headers || {}) };
-  const res = await fetch(`${baseUrl}${path}`, { ...init, headers, signal: AbortSignal.timeout(20000) });
-  const text = await res.text();
-  let data: any = null;
-  if (text) {
-    try { data = JSON.parse(text); } catch { data = text; }
+  let lastError: unknown;
+  for (const candidate of fallbackBaseUrls(baseUrl)) {
+    try {
+      const res = await fetch(buildApiUrl(candidate, path), { ...init, headers, signal: AbortSignal.timeout(8000) });
+      const text = await res.text();
+      let data: any = null;
+      if (text) {
+        try { data = JSON.parse(text); } catch { data = text; }
+      }
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
+      return data;
+    } catch (err) {
+      lastError = err;
+    }
   }
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
-  return data;
+  throw lastError;
 }
 
 Deno.serve(async (req) => {
@@ -81,6 +110,6 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error('Prowlarr proxy error:', err);
-    return json({ error: 'Failed to connect to Prowlarr', details: err instanceof Error ? err.message : 'Unknown error', baseUrl }, 502);
+    return json({ error: 'Failed to connect to Prowlarr', details: describeConnectionError(err, baseUrl), baseUrl }, 502);
   }
 });

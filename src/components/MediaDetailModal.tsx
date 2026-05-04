@@ -23,10 +23,16 @@ const MediaDetailModal = forwardRef<HTMLDivElement, MediaDetailModalProps>(funct
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
   useEffect(() => {
-    if (!open || item?.type !== 'show' || !item.ratingKey) {
+    if (!open || !item?.ratingKey || (item.type !== 'show' && item.type !== 'season')) {
       setSeasons([]);
       setEpisodes([]);
       setSelectedSeason('');
+      return;
+    }
+
+    if (item.type === 'season') {
+      setSeasons([]);
+      setSelectedSeason(item.ratingKey);
       return;
     }
 
@@ -106,11 +112,11 @@ const MediaDetailModal = forwardRef<HTMLDivElement, MediaDetailModalProps>(funct
             </Button>
           </div>
 
-          {item.type === 'show' && (
+          {(item.type === 'show' || item.type === 'season') && (
             <div className="space-y-4 pt-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold">Episodes</h3>
-                <Select value={selectedSeason} onValueChange={setSelectedSeason} disabled={!seasons.length}>
+                {item.type === 'show' && <Select value={selectedSeason} onValueChange={setSelectedSeason} disabled={!seasons.length}>
                   <SelectTrigger className="w-full sm:w-56 bg-secondary border-border">
                     <SelectValue placeholder="Select season" />
                   </SelectTrigger>
@@ -121,7 +127,7 @@ const MediaDetailModal = forwardRef<HTMLDivElement, MediaDetailModalProps>(funct
                       </SelectItem>
                     ))}
                   </SelectContent>
-                </Select>
+                </Select>}
               </div>
 
               <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
