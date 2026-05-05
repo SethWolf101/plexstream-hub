@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
         const playableRatingKey = await resolvePlayableRatingKey(baseUrl, ratingKey, PLEX_TOKEN);
         const path = encodeURIComponent(`/library/metadata/${playableRatingKey}`);
         const session = crypto.randomUUID().replaceAll('-', '');
-        const hlsPath = `/video/:/transcode/universal/start.m3u8?path=${path}&mediaIndex=0&partIndex=0&protocol=hls&offset=0&fastSeek=1&copyts=1&directPlay=0&directStream=1&subtitleSize=100&subtitles=burn&audioBoost=100&maxVideoBitrate=40000&videoQuality=100&videoResolution=1920x1080&location=wan&mediaBufferSize=102400&session=${session}&X-Plex-Platform=Chrome&X-Plex-Device=Chrome&X-Plex-Device-Name=Seths%20Streams&X-Plex-Client-Identifier=seths-streams-${session}&X-Plex-Product=Seths%20Streams&X-Plex-Version=1.0`;
+        const hlsPath = `/video/:/transcode/universal/start.m3u8?path=${path}&mediaIndex=0&partIndex=0&protocol=hls&offset=0&fastSeek=1&copyts=1&directPlay=0&directStream=0&videoCodec=h264&audioCodec=aac&subtitleSize=100&subtitles=burn&audioBoost=100&maxVideoBitrate=20000&videoQuality=100&videoResolution=1920x1080&location=wan&mediaBufferSize=102400&session=${session}&X-Plex-Platform=Chrome&X-Plex-Device=Chrome&X-Plex-Device-Name=Seths%20Streams&X-Plex-Client-Identifier=seths-streams-${session}&X-Plex-Product=Seths%20Streams&X-Plex-Version=1.0`;
         const res = await fetchPlex(baseUrl, hlsPath, PLEX_TOKEN, { headers: { Accept: 'application/vnd.apple.mpegurl,*/*' } });
         const playlist = await res.text();
         if (!res.ok) return response({ error: 'Plex could not start the stream', details: playlist.substring(0, 500) }, 502);
