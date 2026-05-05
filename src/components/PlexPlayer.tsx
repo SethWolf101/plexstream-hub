@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Maximize2, Play } from 'lucide-react';
-import { plexStreamUrl, type PlexItem } from '@/lib/plex';
+import { AlertCircle, Loader2, Maximize2, Play } from 'lucide-react';
+import { plexAuthHeaders, plexStreamUrl, type PlexItem } from '@/lib/plex';
 
 interface PlexPlayerProps {
   item: PlexItem | null;
@@ -14,6 +14,7 @@ interface PlexPlayerProps {
 export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const source = useMemo(() => (item?.ratingKey ? plexStreamUrl(item.ratingKey) : ''), [item?.ratingKey]);
 
   useEffect(() => {
@@ -21,33 +22,51 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
 
     const video = videoRef.current;
     setError('');
+    setLoading(true);
     let hls: Hls | null = null;
+
+    const stopLoading = () => setLoading(false);
+    const failPlayback = (message = 'Unable to play media.') => {
+      setLoading(false);
+      setError(message);
+    };
+
+    video.addEventListener('canplay', stopLoading);
+    video.addEventListener('playing', stopLoading);
+    video.addEventListener('error', () => failPlayback(video.error?.message || 'Unable to play media.'));
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = source;
-      video.play().catch(() => undefined);
+      video.load();
+      video.play().catch(() => stopLoading());
     } else if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
         maxBufferLength: 60,
         maxMaxBufferLength: 180,
+        xhrSetup: (xhr) => {
+          Object.entries(plexAuthHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+        },
       });
       hls.loadSource(source);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => undefined));
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) setError(data.details || 'Playback failed');
+        if (data.fatal) failPlayback(data.details || 'Playback failed');
       });
     } else {
-      setError('This browser cannot play Plex HLS streams.');
+      failPlayback('This browser cannot play Plex HLS streams.');
     }
 
     return () => {
+      video.removeEventListener('canplay', stopLoading);
+      video.removeEventListener('playing', stopLoading);
       video.pause();
       video.removeAttribute('src');
       video.load();
       hls?.destroy();
+      setLoading(false);
     };
   }, [open, source]);
 
@@ -63,6 +82,12 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
           <div className="aspect-video w-full">
             <video ref={videoRef} className="h-full w-full" controls playsInline poster={item?.art || item?.thumb || undefined} />
           </div>
+          {loading && !error && (
+            <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Connecting to Plex stream...</span>
+            </div>
+          )}
           {error && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4" />
