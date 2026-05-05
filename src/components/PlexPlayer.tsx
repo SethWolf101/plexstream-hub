@@ -30,10 +30,11 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
       setLoading(false);
       setError(message);
     };
+    const onVideoError = () => failPlayback(video.error?.message || 'Unable to play media.');
 
     video.addEventListener('canplay', stopLoading);
     video.addEventListener('playing', stopLoading);
-    video.addEventListener('error', () => failPlayback(video.error?.message || 'Unable to play media.'));
+    video.addEventListener('error', onVideoError);
 
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = source;
@@ -62,6 +63,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
     return () => {
       video.removeEventListener('canplay', stopLoading);
       video.removeEventListener('playing', stopLoading);
+      video.removeEventListener('error', onVideoError);
       video.pause();
       video.removeAttribute('src');
       video.load();
