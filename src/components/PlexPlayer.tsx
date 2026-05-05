@@ -36,11 +36,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
     video.addEventListener('playing', stopLoading);
     video.addEventListener('error', onVideoError);
 
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = source;
-      video.load();
-      video.play().catch(() => stopLoading());
-    } else if (Hls.isSupported()) {
+    if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
@@ -56,6 +52,10 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) failPlayback(data.details || 'Playback failed');
       });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = source;
+      video.load();
+      video.play().catch(() => stopLoading());
     } else {
       failPlayback('This browser cannot play Plex HLS streams.');
     }
