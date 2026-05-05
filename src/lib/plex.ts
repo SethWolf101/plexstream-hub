@@ -46,6 +46,11 @@ export function plexStreamUrl(ratingKey: string) {
   return `https://${projectId}.supabase.co/functions/v1/plex-proxy?${qs}&apikey=${encodeURIComponent(anonKey)}`;
 }
 
+export function plexAuthHeaders() {
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  return { Authorization: `Bearer ${anonKey}`, apikey: anonKey };
+}
+
 export function splitGenres(item?: Pick<PlexItem, 'genre'> | null) {
   return (item?.genre || '')
     .split(',')
