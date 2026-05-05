@@ -181,8 +181,8 @@ Deno.serve(async (req) => {
   }
 });
 
-function rewritePlaylist(playlist: string, requestUrl: string, relativeBaseUrl: string, anonKey: string) {
-  const functionUrl = `${Deno.env.get('SUPABASE_URL') || new URL(requestUrl).origin}/functions/v1/plex-proxy`;
+function rewritePlaylist(playlist: string, requestUrl: string, relativeBaseUrl: string, anonKey: string, session = '') {
+  const functionUrl = baseFunctionUrl(requestUrl);
   return playlist.split('\n').map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
@@ -192,8 +192,13 @@ function rewritePlaylist(playlist: string, requestUrl: string, relativeBaseUrl: 
       : resolved.href;
     const qs = new URLSearchParams({ action: 'segment', path: absolute });
     if (anonKey) qs.set('apikey', anonKey);
+    if (session) qs.set('session', session);
     return `${functionUrl}?${qs.toString()}`;
   }).join('\n');
+}
+
+function sessionFromPath(path: string) {
+  return path.match(/\/session\/([^/]+)/)?.[1] || '';
 }
 
 async function resolvePlayableRatingKey(baseUrl: string, ratingKey: string, token: string) {
