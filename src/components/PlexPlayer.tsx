@@ -18,12 +18,14 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
   const source = useMemo(() => (item?.ratingKey ? plexStreamUrl(item.ratingKey) : ''), [item?.ratingKey]);
 
   useEffect(() => {
+    console.log('[PlexPlayer] effect', { open, source, hasVideo: !!videoRef.current, item });
     if (!open || !source || !videoRef.current) return;
 
     const video = videoRef.current;
     setError('');
     setLoading(true);
     let hls: Hls | null = null;
+    console.log('[PlexPlayer] starting playback, Hls supported:', Hls.isSupported());
 
     const stopLoading = () => setLoading(false);
     const failPlayback = (message = 'Unable to play media.') => {
