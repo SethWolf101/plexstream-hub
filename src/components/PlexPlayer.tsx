@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Hls from 'hls.js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -12,16 +12,16 @@ interface PlexPlayerProps {
 }
 
 export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const source = useMemo(() => (item?.ratingKey ? plexStreamUrl(item.ratingKey) : ''), [item?.ratingKey]);
 
   useEffect(() => {
-    console.log('[PlexPlayer] effect', { open, source, hasVideo: !!videoRef.current, item });
-    if (!open || !source || !videoRef.current) return;
+    console.log('[PlexPlayer] effect', { open, source, hasVideo: !!videoEl, item });
+    if (!open || !source || !videoEl) return;
 
-    const video = videoRef.current;
+    const video = videoEl;
     setError('');
     setLoading(true);
     let hls: Hls | null = null;
@@ -74,7 +74,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
       hls?.destroy();
       setLoading(false);
     };
-  }, [open, source]);
+  }, [open, source, videoEl]);
 
   const title = item?.type === 'episode' && item.parentTitle ? `${item.parentTitle} — ${item.title}` : item?.title || 'Player';
 
@@ -86,7 +86,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
         </DialogHeader>
         <div className="bg-background">
           <div className="aspect-video w-full">
-            <video ref={videoRef} className="h-full w-full" controls playsInline poster={item?.art || item?.thumb || undefined} />
+            <video ref={setVideoEl} className="h-full w-full" controls playsInline poster={item?.art || item?.thumb || undefined} />
           </div>
           {loading && !error && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
@@ -105,7 +105,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
               <p className="font-medium truncate">{title}</p>
               <p className="text-xs text-muted-foreground">High quality Plex streaming inside Seth&apos;s Streams</p>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => videoRef.current?.requestFullscreen?.()}>
+            <Button variant="secondary" size="sm" onClick={() => videoEl?.requestFullscreen?.()}>
               <Maximize2 className="h-4 w-4 mr-2" /> Fullscreen
             </Button>
           </div>
