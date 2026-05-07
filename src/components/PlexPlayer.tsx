@@ -18,12 +18,14 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
   const source = useMemo(() => (item?.ratingKey ? plexStreamUrl(item.ratingKey) : ''), [item?.ratingKey]);
 
   useEffect(() => {
+    console.log('[PlexPlayer] effect', { open, source, hasVideo: !!videoRef.current, item });
     if (!open || !source || !videoRef.current) return;
 
     const video = videoRef.current;
     setError('');
     setLoading(true);
     let hls: Hls | null = null;
+    console.log('[PlexPlayer] starting playback, Hls supported:', Hls.isSupported());
 
     const stopLoading = () => setLoading(false);
     const failPlayback = (message = 'Unable to play media.') => {
@@ -42,15 +44,17 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
         lowLatencyMode: false,
         maxBufferLength: 60,
         maxMaxBufferLength: 180,
-        xhrSetup: (xhr) => {
-          Object.entries(plexAuthHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
-        },
+        debug: false,
       });
       hls.loadSource(source);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => undefined));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('[PlexPlayer] manifest parsed, attempting play');
+        video.play().catch((e) => console.warn('[PlexPlayer] play() rejected', e));
+      });
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) failPlayback(data.details || 'Playback failed');
+        console.error('[PlexPlayer] HLS error', data);
+        if (data.fatal) failPlayback(`${data.type}: ${data.details}`);
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = source;
