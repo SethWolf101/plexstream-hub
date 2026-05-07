@@ -86,7 +86,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
         </DialogHeader>
         <div className="bg-background">
           <div className="aspect-video w-full">
-            <video ref={videoRef} className="h-full w-full" controls playsInline poster={item?.art || item?.thumb || undefined} />
+            <video ref={setVideoEl} className="h-full w-full" controls playsInline poster={item?.art || item?.thumb || undefined} />
           </div>
           {loading && !error && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
