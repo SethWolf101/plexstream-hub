@@ -74,7 +74,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
       hls?.destroy();
       setLoading(false);
     };
-  }, [open, source]);
+  }, [open, source, videoEl]);
 
   const title = item?.type === 'episode' && item.parentTitle ? `${item.parentTitle} — ${item.title}` : item?.title || 'Player';
 
