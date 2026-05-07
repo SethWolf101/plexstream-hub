@@ -12,16 +12,16 @@ interface PlexPlayerProps {
 }
 
 export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const source = useMemo(() => (item?.ratingKey ? plexStreamUrl(item.ratingKey) : ''), [item?.ratingKey]);
 
   useEffect(() => {
-    console.log('[PlexPlayer] effect', { open, source, hasVideo: !!videoRef.current, item });
-    if (!open || !source || !videoRef.current) return;
+    console.log('[PlexPlayer] effect', { open, source, hasVideo: !!videoEl, item });
+    if (!open || !source || !videoEl) return;
 
-    const video = videoRef.current;
+    const video = videoEl;
     setError('');
     setLoading(true);
     let hls: Hls | null = null;
