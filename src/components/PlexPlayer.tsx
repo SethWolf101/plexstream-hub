@@ -105,7 +105,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
               <p className="font-medium truncate">{title}</p>
               <p className="text-xs text-muted-foreground">High quality Plex streaming inside Seth&apos;s Streams</p>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => videoRef.current?.requestFullscreen?.()}>
+            <Button variant="secondary" size="sm" onClick={() => videoEl?.requestFullscreen?.()}>
               <Maximize2 className="h-4 w-4 mr-2" /> Fullscreen
             </Button>
           </div>
