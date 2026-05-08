@@ -38,6 +38,29 @@ function describeConnectionError(err: unknown, baseUrl: string) {
   return err instanceof Error ? err.message : 'Unknown error';
 }
 
+function offlineResponse(err: unknown, baseUrl: string, action: string | null) {
+  const details = describeConnectionError(err, baseUrl);
+  const base = {
+    online: false,
+    error: 'Radarr is offline or unreachable',
+    details,
+    baseUrl,
+  };
+
+  switch (action) {
+    case 'status':
+      return json(base);
+    case 'movies':
+      return json({ ...base, movies: [] });
+    case 'search':
+      return json({ ...base, results: [] });
+    case 'indexers':
+      return json({ ...base, indexers: [] });
+    default:
+      return json(base);
+  }
+}
+
 async function apiFetch(baseUrl: string, path: string, apiKey: string, init: RequestInit = {}) {
   const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json', ...(init.headers || {}) };
   let lastError: unknown;
@@ -124,6 +147,6 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error('Radarr proxy error:', err);
-    return json({ error: 'Failed to connect to Radarr', details: describeConnectionError(err, baseUrl), baseUrl }, 502);
+    return offlineResponse(err, baseUrl, action);
   }
 });
