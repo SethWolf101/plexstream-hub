@@ -244,9 +244,14 @@ export default function Admin() {
       const res = await apiCall('radarr-proxy', { action: 'search', term: radarrSearch });
       if (res.ok) {
         const data = await res.json();
+        if (data.online === false) throw new Error(data.details || data.error || 'Radarr is offline.');
         setRadarrResults(data.results || []);
+      } else {
+        throw new Error(await serviceErrorMessage(res, 'Movie search failed.'));
       }
-    } catch { /* */ }
+    } catch (err) {
+      toast({ title: 'Movie search failed', description: err instanceof Error ? err.message : 'Check Radarr settings.', variant: 'destructive' });
+    }
     setSearchingRadarr(false);
   };
 
@@ -262,14 +267,15 @@ export default function Admin() {
         addOptions: { searchForMovie: true },
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.online === false) throw new Error(data.details || data.error || 'Radarr is offline.');
         toast({ title: 'Added!', description: `"${movie.title}" added to Radarr.` });
         fetchRadarrMovies();
       } else {
-        const err = await res.json();
-        toast({ title: 'Error', description: JSON.stringify(err), variant: 'destructive' });
+        throw new Error(await serviceErrorMessage(res, 'Failed to add movie.'));
       }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to add movie.', variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Could not add movie', description: err instanceof Error ? err.message : 'Check Radarr settings.', variant: 'destructive' });
     }
   };
   const fetchIndexers = async () => {
