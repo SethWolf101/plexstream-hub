@@ -356,6 +356,38 @@ export default function Admin() {
             <RefreshCw className={`w-4 h-4 mr-2 ${checkingServices ? 'animate-spin' : ''}`} />
             Refresh Status
           </Button>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {configurableServices.map(service => {
+              const cfg = serviceConfigs[service.name];
+              return (
+                <Card key={service.name} className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-lg">{service.label} Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Input
+                      value={cfg.base_url}
+                      onChange={e => setServiceConfigs(prev => ({ ...prev, [service.name]: { ...prev[service.name], base_url: e.target.value } }))}
+                      placeholder={service.urlPlaceholder}
+                      className="bg-secondary border-border"
+                    />
+                    <Input
+                      value={cfg.api_key}
+                      onChange={e => setServiceConfigs(prev => ({ ...prev, [service.name]: { ...prev[service.name], api_key: e.target.value } }))}
+                      placeholder={`${service.label} API key`}
+                      type="password"
+                      className="bg-secondary border-border"
+                    />
+                    <Button className="w-full" onClick={() => saveServiceConfig(service.name)} disabled={savingService === service.name}>
+                      <Save className="w-4 h-4 mr-2" />
+                      {savingService === service.name ? 'Saving...' : `Save ${service.label}`}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </TabsContent>
 
         {/* Sonarr Tab - Add/Manage Shows */}
