@@ -59,6 +59,26 @@ function offlineResponse(err: unknown, baseUrl: string, action: string | null) {
   }
 }
 
+async function getSavedServiceConfig(serviceName: string) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) return null;
+
+  const res = await fetch(`${supabaseUrl}/rest/v1/service_configs?select=base_url,api_key&service_name=eq.${encodeURIComponent(serviceName)}&limit=1`, {
+    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, Accept: 'application/json' },
+  });
+  if (!res.ok) return null;
+  const rows = await res.json().catch(() => []);
+  return rows?.[0] || null;
+}
+
+async function getServiceConfig(serviceName: string, envUrlName: string, envKeyName: string) {
+  const saved = await getSavedServiceConfig(serviceName);
+  const baseUrl = saved?.base_url?.trim() || Deno.env.get(envUrlName) || '';
+  const apiKey = saved?.api_key?.trim() || Deno.env.get(envKeyName) || '';
+  return baseUrl && apiKey ? { baseUrl, apiKey } : null;
+}
+
 async function apiFetch(baseUrl: string, path: string, apiKey: string, init: RequestInit = {}) {
   const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json', ...(init.headers || {}) };
   let lastError: unknown;
@@ -82,18 +102,13 @@ async function apiFetch(baseUrl: string, path: string, apiKey: string, init: Req
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  const PROWLARR_URL = Deno.env.get('PROWLARR_URL');
-  const PROWLARR_API_KEY = Deno.env.get('PROWLARR_API_KEY');
-  const SONARR_URL = Deno.env.get('SONARR_URL');
-  const SONARR_API_KEY = Deno.env.get('SONARR_API_KEY');
-  const RADARR_URL = Deno.env.get('RADARR_URL');
-  const RADARR_API_KEY = Deno.env.get('RADARR_API_KEY');
-
-  if (!PROWLARR_URL || !PROWLARR_API_KEY) return json({ error: 'Prowlarr not configured' }, 500);
-
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
-  const baseUrl = cleanBaseUrl(PROWLARR_URL, 'prowlarr');
+  const prowlarrConfig = await getServiceConfig('prowlarr', 'PROWLARR_URL', 'PROWLARR_API_KEY');
+  if (!prowlarrConfig) return offlineResponse(new Error('Prowlarr not configured. Add the URL and API key in Admin > Services.'), 'Not configured', action);
+
+  const baseUrl = cleanBaseUrl(prowlarrConfig.baseUrl, 'prowlarr');
+  const PROWLARR_API_KEY = prowlarrConfig.apiKey;
 
   try {
     switch (action) {
@@ -117,12 +132,14 @@ Deno.serve(async (req) => {
         ]);
 
         const appChecks: Record<string, boolean> = {};
-        if (SONARR_URL && SONARR_API_KEY) {
-          await apiFetch(cleanBaseUrl(SONARR_URL, 'sonarr'), '/api/v3/system/status', SONARR_API_KEY);
+        const sonarrConfig = await getServiceConfig('sonarr', 'SONARR_URL', 'SONARR_API_KEY');
+        const radarrConfig = await getServiceConfig('radarr', 'RADARR_URL', 'RADARR_API_KEY');
+        if (sonarrConfig) {
+          await apiFetch(cleanBaseUrl(sonarrConfig.baseUrl, 'sonarr'), '/api/v3/system/status', sonarrConfig.apiKey);
           appChecks.sonarr = true;
         }
-        if (RADARR_URL && RADARR_API_KEY) {
-          await apiFetch(cleanBaseUrl(RADARR_URL, 'radarr'), '/api/v3/system/status', RADARR_API_KEY);
+        if (radarrConfig) {
+          await apiFetch(cleanBaseUrl(radarrConfig.baseUrl, 'radarr'), '/api/v3/system/status', radarrConfig.apiKey);
           appChecks.radarr = true;
         }
 
