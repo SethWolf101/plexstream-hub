@@ -61,6 +61,26 @@ function offlineResponse(err: unknown, baseUrl: string, action: string | null) {
   }
 }
 
+async function getSavedServiceConfig(serviceName: string) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) return null;
+
+  const res = await fetch(`${supabaseUrl}/rest/v1/service_configs?select=base_url,api_key&service_name=eq.${encodeURIComponent(serviceName)}&limit=1`, {
+    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, Accept: 'application/json' },
+  });
+  if (!res.ok) return null;
+  const rows = await res.json().catch(() => []);
+  return rows?.[0] || null;
+}
+
+async function getServiceConfig() {
+  const saved = await getSavedServiceConfig('radarr');
+  const baseUrl = saved?.base_url?.trim() || Deno.env.get('RADARR_URL') || '';
+  const apiKey = saved?.api_key?.trim() || Deno.env.get('RADARR_API_KEY') || '';
+  return baseUrl && apiKey ? { baseUrl, apiKey } : null;
+}
+
 async function apiFetch(baseUrl: string, path: string, apiKey: string, init: RequestInit = {}) {
   const headers = { 'X-Api-Key': apiKey, 'Content-Type': 'application/json', ...(init.headers || {}) };
   let lastError: unknown;
@@ -97,14 +117,13 @@ async function getDefaults(baseUrl: string, apiKey: string) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  const RADARR_URL = Deno.env.get('RADARR_URL');
-  const RADARR_API_KEY = Deno.env.get('RADARR_API_KEY');
-
-  if (!RADARR_URL || !RADARR_API_KEY) return json({ error: 'Radarr not configured' }, 500);
-
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
-  const baseUrl = cleanBaseUrl(RADARR_URL);
+  const config = await getServiceConfig();
+  if (!config) return offlineResponse(new Error('Radarr not configured. Add the URL and API key in Admin > Services.'), 'Not configured', action);
+
+  const baseUrl = cleanBaseUrl(config.baseUrl);
+  const RADARR_API_KEY = config.apiKey;
 
   try {
     switch (action) {
