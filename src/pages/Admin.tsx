@@ -95,7 +95,7 @@ export default function Admin() {
         const res = await apiCall(fn, { action: 'status' });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          results[name] = { online: true, ...data };
+          results[name] = { ...data, online: data.online !== false };
         } else {
           results[name] = { online: false, error: data.error || 'Disconnected', details: data.details };
         }
