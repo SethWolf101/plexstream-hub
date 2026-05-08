@@ -8,7 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Users, FileText, Server, CheckCircle, XCircle, RefreshCw, Plus, Search, Trash2, Download, Tv, Film } from 'lucide-react';
+import { Users, FileText, Server, CheckCircle, XCircle, RefreshCw, Plus, Search, Download, Tv, Film, Save } from 'lucide-react';
+
+type ServiceName = 'sonarr' | 'radarr' | 'prowlarr';
+
+const configurableServices: { name: ServiceName; label: string; urlPlaceholder: string }[] = [
+  { name: 'sonarr', label: 'Sonarr', urlPlaceholder: 'http://your-ip:8989 or https://your-tunnel/sonarr' },
+  { name: 'radarr', label: 'Radarr', urlPlaceholder: 'http://your-ip:7878 or https://your-tunnel/radarr' },
+  { name: 'prowlarr', label: 'Prowlarr', urlPlaceholder: 'http://your-ip:9696 or https://your-tunnel/prowlarr' },
+];
 
 export default function Admin() {
   const { isAdmin, isLoading } = useAuth();
@@ -18,6 +26,12 @@ export default function Admin() {
   const [requests, setRequests] = useState<any[]>([]);
   const [serviceStatus, setServiceStatus] = useState<Record<string, { online: boolean; version?: string; name?: string; error?: string; details?: string }>>({});
   const [checkingServices, setCheckingServices] = useState(false);
+  const [serviceConfigs, setServiceConfigs] = useState<Record<ServiceName, { base_url: string; api_key: string }>>({
+    sonarr: { base_url: '', api_key: '' },
+    radarr: { base_url: '', api_key: '' },
+    prowlarr: { base_url: '', api_key: '' },
+  });
+  const [savingService, setSavingService] = useState<ServiceName | null>(null);
 
   // Sonarr state
   const [sonarrSeries, setSonarrSeries] = useState<any[]>([]);
@@ -44,6 +58,7 @@ export default function Admin() {
     if (isAdmin) {
       fetchUsers();
       fetchRequests();
+      fetchServiceConfigs();
       checkServices();
       fetchSonarrSeries();
       fetchRadarrMovies();
@@ -84,6 +99,46 @@ export default function Admin() {
       .select('*')
       .order('created_at', { ascending: false });
     setRequests(data || []);
+  };
+
+  const fetchServiceConfigs = async () => {
+    const { data } = await supabase.from('service_configs').select('service_name,base_url,api_key');
+    if (!data) return;
+    setServiceConfigs(prev => {
+      const next = { ...prev };
+      data.forEach((cfg: any) => {
+        if (cfg.service_name in next) next[cfg.service_name as ServiceName] = { base_url: cfg.base_url || '', api_key: cfg.api_key || '' };
+      });
+      return next;
+    });
+  };
+
+  const saveServiceConfig = async (serviceName: ServiceName) => {
+    const cfg = serviceConfigs[serviceName];
+    if (!cfg.base_url.trim() || !cfg.api_key.trim()) {
+      toast({ title: 'Missing details', description: 'Add both the URL and API key.', variant: 'destructive' });
+      return;
+    }
+
+    setSavingService(serviceName);
+    const { error } = await supabase.from('service_configs').upsert({
+      service_name: serviceName,
+      base_url: cfg.base_url.trim(),
+      api_key: cfg.api_key.trim(),
+    }, { onConflict: 'service_name' });
+    setSavingService(null);
+
+    if (error) {
+      toast({ title: 'Could not save', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Saved', description: `${serviceName} settings saved.` });
+    checkServices();
+  };
+
+  const serviceErrorMessage = async (res: Response, fallback: string) => {
+    const data = await res.json().catch(() => ({}));
+    return data?.details || data?.error || fallback;
   };
 
   const checkServices = async () => {
@@ -135,9 +190,14 @@ export default function Admin() {
       const res = await apiCall('sonarr-proxy', { action: 'search', term: sonarrSearch });
       if (res.ok) {
         const data = await res.json();
+        if (data.online === false) throw new Error(data.details || data.error || 'Sonarr is offline.');
         setSonarrResults(data.results || []);
+      } else {
+        throw new Error(await serviceErrorMessage(res, 'Show search failed.'));
       }
-    } catch { /* */ }
+    } catch (err) {
+      toast({ title: 'Show search failed', description: err instanceof Error ? err.message : 'Check Sonarr settings.', variant: 'destructive' });
+    }
     setSearchingSonarr(false);
   };
 
@@ -154,14 +214,15 @@ export default function Admin() {
         addOptions: { searchForMissingEpisodes: true },
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.online === false) throw new Error(data.details || data.error || 'Sonarr is offline.');
         toast({ title: 'Added!', description: `"${show.title}" added to Sonarr.` });
         fetchSonarrSeries();
       } else {
-        const err = await res.json();
-        toast({ title: 'Error', description: JSON.stringify(err), variant: 'destructive' });
+        throw new Error(await serviceErrorMessage(res, 'Failed to add show.'));
       }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to add show.', variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Could not add show', description: err instanceof Error ? err.message : 'Check Sonarr settings.', variant: 'destructive' });
     }
   };
 
