@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Hls from 'hls.js';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2, Maximize2, Play } from 'lucide-react';
-import { plexAuthHeaders, plexStreamUrl, type PlexItem } from '@/lib/plex';
+import { plexStreamUrl, type PlexItem } from '@/lib/plex';
 
 interface PlexPlayerProps {
   item: PlexItem | null;
@@ -25,6 +25,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
     setError('');
     setLoading(true);
     let hls: Hls | null = null;
+    let fragmentFailures = 0;
     console.log('[PlexPlayer] starting playback, Hls supported:', Hls.isSupported());
 
     const stopLoading = () => setLoading(false);
@@ -52,9 +53,16 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
         console.log('[PlexPlayer] manifest parsed, attempting play');
         video.play().catch((e) => console.warn('[PlexPlayer] play() rejected', e));
       });
+      hls.on(Hls.Events.FRAG_LOADED, () => {
+        fragmentFailures = 0;
+      });
       hls.on(Hls.Events.ERROR, (_event, data) => {
         console.error('[PlexPlayer] HLS error', data);
-        if (data.fatal) failPlayback(`${data.type}: ${data.details}`);
+        if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR) fragmentFailures += 1;
+        if (data.fatal || fragmentFailures >= 3) {
+          hls?.stopLoad();
+          failPlayback('The Plex stream could not load. Please retry playback.');
+        }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = source;
@@ -83,6 +91,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
       <DialogContent className="max-w-6xl bg-card border-border p-0 overflow-hidden">
         <DialogHeader className="px-4 py-3 border-b border-border">
           <DialogTitle className="text-base sm:text-lg truncate">{title}</DialogTitle>
+          <DialogDescription className="sr-only">Streaming {title} from your Plex library.</DialogDescription>
         </DialogHeader>
         <div className="bg-background">
           <div className="aspect-video w-full">

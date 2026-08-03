@@ -159,11 +159,17 @@ Deno.serve(async (req) => {
           const playlist = await res.text();
           return response(rewritePlaylist(playlist, req.url, upstream, SUPABASE_ANON_KEY, sessionFromPath(path)), 200, 'application/vnd.apple.mpegurl');
         }
-        return new Response(res.body, {
+        // Buffer each media segment before responding. Relaying Plex's streaming
+        // body directly can be cut off when the edge invocation finishes, which
+        // leaves hls.js with HTTP status 0 and zero loaded bytes.
+        const segment = await res.arrayBuffer();
+        return new Response(segment, {
           status: 200,
           headers: {
             ...corsHeaders,
-            'Content-Type': contentType || 'application/octet-stream',
+            'Content-Type': contentType || (path.includes('.ts') ? 'video/mp2t' : 'application/octet-stream'),
+            'Content-Length': String(segment.byteLength),
+            'Accept-Ranges': 'bytes',
             'Cache-Control': 'no-store',
           },
         });
