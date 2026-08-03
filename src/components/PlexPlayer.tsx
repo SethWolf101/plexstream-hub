@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2, Maximize2, Play } from 'lucide-react';
-import { plexStreamUrl, type PlexItem } from '@/lib/plex';
+import { getNextEpisode, plexStreamUrl, type PlexItem } from '@/lib/plex';
 
 interface PlexPlayerProps {
   item: PlexItem | null;
@@ -15,7 +15,40 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const source = useMemo(() => (item?.ratingKey ? plexStreamUrl(item.ratingKey) : ''), [item?.ratingKey]);
+  const [current, setCurrent] = useState<PlexItem | null>(item);
+  const [nextEpisode, setNextEpisode] = useState<PlexItem | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const source = useMemo(() => (current?.ratingKey ? plexStreamUrl(current.ratingKey) : ''), [current?.ratingKey]);
+
+  // Reset to the item that was opened.
+  useEffect(() => {
+    setCurrent(item);
+    setCountdown(null);
+  }, [item]);
+
+  // Preload what plays next when the current episode ends.
+  useEffect(() => {
+    let cancelled = false;
+    setNextEpisode(null);
+    if (!open || !current) return;
+    getNextEpisode(current).then((next) => { if (!cancelled) setNextEpisode(next); });
+    return () => { cancelled = true; };
+  }, [open, current]);
+
+  const nextEpisodeRef = useRef<PlexItem | null>(null);
+  useEffect(() => { nextEpisodeRef.current = nextEpisode; }, [nextEpisode]);
+
+  // Auto-advance countdown.
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      setCountdown(null);
+      if (nextEpisode) setCurrent(nextEpisode);
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown, nextEpisode]);
 
   useEffect(() => {
     console.log('[PlexPlayer] effect', { open, source, hasVideo: !!videoEl, item });
@@ -34,10 +67,12 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
       setError(message);
     };
     const onVideoError = () => failPlayback(video.error?.message || 'Unable to play media.');
+    const onEnded = () => { if (nextEpisodeRef.current) setCountdown(5); };
 
     video.addEventListener('canplay', stopLoading);
     video.addEventListener('playing', stopLoading);
     video.addEventListener('error', onVideoError);
+    video.addEventListener('ended', onEnded);
 
     if (Hls.isSupported()) {
       hls = new Hls({
@@ -76,6 +111,7 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
       video.removeEventListener('canplay', stopLoading);
       video.removeEventListener('playing', stopLoading);
       video.removeEventListener('error', onVideoError);
+      video.removeEventListener('ended', onEnded);
       video.pause();
       video.removeAttribute('src');
       video.load();
@@ -84,7 +120,13 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
     };
   }, [open, source, videoEl]);
 
-  const title = item?.type === 'episode' && item.parentTitle ? `${item.parentTitle} — ${item.title}` : item?.title || 'Player';
+  const title =
+    current?.type === 'episode' && current.parentTitle
+      ? `${current.parentTitle} — ${current.title}`
+      : current?.title || 'Player';
+  const nextTitle = nextEpisode
+    ? `${nextEpisode.parentTitle ? `${nextEpisode.parentTitle} — ` : ''}${nextEpisode.title}`
+    : '';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,8 +137,22 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
         </DialogHeader>
         <div className="bg-background">
           <div className="aspect-video w-full">
-            <video ref={setVideoEl} className="h-full w-full" controls playsInline poster={item?.art || item?.thumb || undefined} />
+            <video ref={setVideoEl} className="h-full w-full" controls playsInline poster={current?.art || current?.thumb || undefined} />
           </div>
+          {countdown !== null && nextEpisode && (
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-muted/40 border-t border-border">
+              <div className="min-w-0 text-sm">
+                <p className="text-muted-foreground">Up next in {countdown}s</p>
+                <p className="font-medium truncate">{nextTitle}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => { setCountdown(null); setCurrent(nextEpisode); }}>
+                  <Play className="h-4 w-4 mr-2" /> Play now
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setCountdown(null)}>Cancel</Button>
+              </div>
+            </div>
+          )}
           {loading && !error && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
