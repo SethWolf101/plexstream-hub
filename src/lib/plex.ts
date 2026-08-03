@@ -60,3 +60,28 @@ export function splitGenres(item?: Pick<PlexItem, 'genre'> | null) {
     .map((g) => g.trim())
     .filter(Boolean);
 }
+
+/** Resolves the next episode to auto-play after `item` finishes (same season, then next season). */
+export async function getNextEpisode(item?: PlexItem | null): Promise<PlexItem | null> {
+  if (!item || item.type !== 'episode' || !item.parentRatingKey) return null;
+
+  try {
+    const seasonData = await plexApi({ action: 'children', ratingKey: item.parentRatingKey });
+    const episodes: PlexItem[] = (seasonData.items || []).filter((e: PlexItem) => e.type === 'episode');
+    const idx = episodes.findIndex((e) => e.ratingKey === item.ratingKey);
+    if (idx >= 0 && episodes[idx + 1]) return episodes[idx + 1];
+
+    if (!item.grandparentRatingKey) return null;
+    const showData = await plexApi({ action: 'children', ratingKey: item.grandparentRatingKey });
+    const seasons: PlexItem[] = (showData.items || []).filter((s: PlexItem) => s.type === 'season' && s.index !== 0);
+    const sIdx = seasons.findIndex((s) => s.ratingKey === item.parentRatingKey);
+    const nextSeason = sIdx >= 0 ? seasons[sIdx + 1] : null;
+    if (!nextSeason) return null;
+
+    const nextData = await plexApi({ action: 'children', ratingKey: nextSeason.ratingKey });
+    const nextEpisodes: PlexItem[] = (nextData.items || []).filter((e: PlexItem) => e.type === 'episode');
+    return nextEpisodes[0] || null;
+  } catch {
+    return null;
+  }
+}
