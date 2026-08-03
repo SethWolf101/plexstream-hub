@@ -13,8 +13,11 @@ export interface PlexItem {
   parentRatingKey?: string;
   parentTitle?: string;
   parentIndex?: number;
+  grandparentRatingKey?: string;
+  grandparentTitle?: string;
   index?: number;
 }
+
 
 export interface PlexSeason extends PlexItem {
   leafCount?: number;
