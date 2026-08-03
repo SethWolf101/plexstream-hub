@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,9 @@ export default function PlexPlayer({ item, open, onOpenChange }: PlexPlayerProps
     getNextEpisode(current).then((next) => { if (!cancelled) setNextEpisode(next); });
     return () => { cancelled = true; };
   }, [open, current]);
+
+  const nextEpisodeRef = useRef<PlexItem | null>(null);
+  useEffect(() => { nextEpisodeRef.current = nextEpisode; }, [nextEpisode]);
 
   // Auto-advance countdown.
   useEffect(() => {
